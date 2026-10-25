@@ -1,0 +1,36 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Jack and the Beanstalk</title></head>
+<body style="font-family:sans-serif;max-width:700px;margin:auto">
+  <h1>Jack and the Beanstalk</h1>
+  <input type="file" id="photo" accept="image/*"><br><br>
+  Intensity: <input type="range" id="intensity" min="1" max="10" value="6">
+  <span id="val">6</span><br><br>
+  <button id="go">Generate</button>
+  <p id="status"></p>
+  <div id="out"></div>
+  <script>
+    const slider = document.getElementById('intensity');
+    slider.oninput = () => document.getElementById('val').textContent = slider.value;
+    document.getElementById('go').onclick = async () => {
+      const f = document.getElementById('photo').files[0];
+      if (!f) return alert('Pick a photo first.');
+      const fd = new FormData();
+      fd.append('photo', f);
+      fd.append('intensity', slider.value);
+      const status = document.getElementById('status');
+      const out = document.getElementById('out');
+      status.textContent = 'Generating (this can take a minute)...';
+      out.innerHTML = '';
+      const r = await fetch('/generate', { method: 'POST', body: fd });
+      const data = await r.json();
+      if (!r.ok) { status.textContent = data.error; return; }
+      status.textContent = '';
+      data.scenes.forEach(s => {
+        out.insertAdjacentHTML('beforeend',
+          `<figure><img src="${s.image}" width="512"><figcaption>${s.caption}</figcaption></figure>`);
+      });
+    };
+  </script>
+</body>
+</html>
