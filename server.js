@@ -1,13 +1,16 @@
 require('dotenv').config();
+const crypto = require('crypto');
 const express = require('express');
 const multer = require('multer');
 const OpenAI = require('openai');
 const sharp = require('sharp');
 const { toFile } = require('openai');
-
-const app = express();
 const rateLimit = require('express-rate-limit');
 
+const story = require('./lib/story');
+const { buildPdf } = require('./lib/pdf');
+
+const app = express();
 app.set('trust proxy', 1); // needed on Render so limits are per visitor, not per proxy
 
 const ipLimiter = rateLimit({
@@ -16,7 +19,7 @@ const ipLimiter = rateLimit({
   standardHeaders: true,
   skipFailedRequests: true,
   legacyHeaders: false,
-  message: { error: 'Limit reached: 3 generations per hour. Try again later.' },
+  message: { error: 'Limit reached: 3 books per hour. Try again later.' },
 });
 
 const DAILY_CAP = 30;
@@ -37,6 +40,7 @@ const upload = multer({
 
 const client = new OpenAI();
 const MODEL = 'gpt-image-2';
+const QUALITY = process.env.IMAGE_QUALITY || 'low';
 
 app.use(express.static('public'));
 
@@ -47,70 +51,147 @@ async function shrink(buffer) {
     .png()
     .toBuffer();
 }
-const COSTUME = 'Jack wears a brown vest over a white shirt, green trousers, and brown boots.';
 
-const SCENE_1 = 'Jack kneels in a farmyard at sunrise, pressing magic beans into a small hole in the soil, with a watering can beside him and a cottage behind him.';
-const SCENE_2 = 'Jack climbs a giant beanstalk with thick green vines and huge leaves, gripping the stalk with both hands, with clouds and a distant castle above him.';
+const png = (buffer) => ({ buffer, mime: 'image/png' });
 
-function styleFor(n) {
-  if (n <= 2) return 'a lightly illustrated portrait, nearly photorealistic, with subtle painterly smoothing';
-  if (n <= 4) return 'a semi-realistic storybook illustration, painterly, natural face proportions';
-  if (n <= 6) return 'a stylized storybook illustration with clean shapes, simplified details, and soft shading';
-  if (n <= 8) return 'a bold hand-drawn cartoon with clear ink outlines, flat colors, and simplified features';
-  return 'an exaggerated cartoon caricature with thick outlines, flat bright colors, and big simplified shapes';
-}
-
-function cartoonPrompt(n) {
-  return `Edit: redraw the person in this photo as ${styleFor(n)}.
-Keep unchanged: face shape, eye spacing, nose, mouth, hairstyle, hair color, skin tone, age, glasses, and all facial hair.
-Background: plain light, head and shoulders.
-Avoid: text, watermarks, beautifying or slimming the face.`;
-}
-
-function scenePrompt(scene, n) {
-  return `Scene: ${scene}
-Subject: the character in Image 2, with the facial features of the person in Image 1. Use Image 1 only to match facial structure; do not copy its pixels, lighting, or photographic texture. ${COSTUME}
-Style: ${styleFor(n)}. Draw the face in the same illustrated style as the body and background: same linework, brushwork, and shading. It must not look like a photo or a cut-out. Match Image 2's palette and art style.
-Avoid: text, watermarks, extra people, split panels.`;
-}
-
+// Image edit with one or more reference images. Order matters: Image 1, Image 2, ...
 async function edit(inputs, prompt) {
   const image = await Promise.all(
     inputs.map((x, i) => toFile(x.buffer, `input${i}.png`, { type: x.mime }))
   );
   const res = await client.images.edit({
-    model: MODEL, image, prompt, size: '1024x1024',
-    quality: 'low'
+    model: MODEL, image, prompt, size: '1024x1024', quality: QUALITY,
   });
   return Buffer.from(res.data[0].b64_json, 'base64');
 }
 
-app.post('/generate', ipLimiter, upload.single('photo'), async (req, res) => {
-  try {
-    if (!req.file) return res.status(400).json({ error: 'Please upload a JPG, PNG, or WebP image.' });
-    if (dailyCapReached()) return res.status(429).json({ error: 'Daily limit reached. Try again tomorrow.' });
-    const intensity = Math.min(10, Math.max(1, parseInt(req.body.intensity) || 6));
+// Text-only generation, used for side-character sheets.
+async function generate(prompt) {
+  const res = await client.images.generate({
+    model: MODEL, prompt, size: '1024x1024', quality: QUALITY,
+  });
+  return Buffer.from(res.data[0].b64_json, 'base64');
+}
 
-    let photoBuffer;
-    try { photoBuffer = await shrink(req.file.buffer); }
-    catch { return res.status(400).json({ error: 'That file is not a valid image.' }); }
-    dailyCount++;
+// ---------- the pipeline ----------
+async function makeBook(photoBuffer, about, onProgress) {
+  const photo = png(photoBuffer);
 
-    const photo = { buffer: photoBuffer, mime: 'image/png' };
-    const cartoon = { buffer: await edit([photo], cartoonPrompt(intensity)), mime: 'image/png' };
-    const img1 = await edit([photo, cartoon], scenePrompt(SCENE_1, intensity));
-    const img2 = await edit([photo, cartoon], scenePrompt(SCENE_2, intensity));
+  // Step 1: character sheets, once per book, in parallel.
+  onProgress('Drawing the characters...');
+  const keys = Object.keys(story.CHARACTERS);
+  const [jackSheet, ...sideSheets] = await Promise.all([
+    edit([photo], story.jackSheetPrompt()),
+    ...keys.map((k) => generate(story.sideSheetPrompt(k))),
+  ]);
+  const sheets = Object.fromEntries(keys.map((k, i) => [k, png(sideSheets[i])]));
+  const jack = png(jackSheet);
 
-    res.json({
-      scenes: [
-        { caption: SCENE_1, image: 'data:image/png;base64,' + img1.toString('base64') },
-        { caption: SCENE_2, image: 'data:image/png;base64,' + img2.toString('base64') },
-      ],
+  // Step 2: pages, in parallel. Every call gets: photo, Jack sheet, then that page's side sheets.
+  onProgress('Painting the pages...');
+  let done = 0;
+  const art = await Promise.all(
+    story.PAGES.map(async (page) => {
+      const refs = [photo, jack, ...page.refs.map((k) => sheets[k])];
+      const img = await edit(refs, story.pagePrompt(page));
+      onProgress(`Painting the pages... (${++done}/${story.PAGES.length})`);
+      return img;
+    })
+  );
+
+  // Step 3: PDF layer draws the text.
+  onProgress('Building your book...');
+  return buildPdf(
+    story.PAGES.map((p, i) => ({ image: art[i], caption: p.caption, textZone: p.textZone })),
+    about
+  );
+}
+
+// ---------- password gate ----------
+const GENERATOR_PASSWORD = process.env.GENERATOR_PASSWORD;
+if (!GENERATOR_PASSWORD) console.warn('GENERATOR_PASSWORD is not set: generation is disabled.');
+
+function passwordOk(given) {
+  if (!GENERATOR_PASSWORD) return false; // fail closed
+  const a = crypto.createHash('sha256').update(String(given || '')).digest();
+  const b = crypto.createHash('sha256').update(GENERATOR_PASSWORD).digest();
+  return crypto.timingSafeEqual(a, b);
+}
+
+// Slows password guessing: 10 wrong attempts per IP per 15 minutes.
+const wrongPasswordLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  legacyHeaders: false,
+  standardHeaders: true,
+  skipSuccessfulRequests: true,
+  message: { error: 'Too many wrong passwords. Try again later.' },
+});
+
+function requirePassword(req, res, next) {
+  if (passwordOk(req.body && req.body.password)) return next();
+  res.status(401).json({ error: 'Wrong password.' });
+}
+
+// ---------- jobs (in memory; Render's request timeout is shorter than a book) ----------
+const jobs = new Map();
+setInterval(() => {
+  const cutoff = Date.now() - 60 * 60 * 1000;
+  for (const [id, j] of jobs) if (j.created < cutoff) jobs.delete(id);
+}, 10 * 60 * 1000).unref();
+
+app.post('/generate', wrongPasswordLimiter, upload.single('photo'), requirePassword, ipLimiter, async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Please upload a JPG, PNG, or WebP image.' });
+  const name = String(req.body.name || '').trim().slice(0, 60);
+  if (!name) return res.status(400).json({ error: "Please enter the child's name." });
+  if (dailyCapReached()) return res.status(429).json({ error: 'Daily limit reached. Try again tomorrow.' });
+
+  let photoBuffer;
+  try { photoBuffer = await shrink(req.file.buffer); }
+  catch { return res.status(400).json({ error: 'That file is not a valid image.' }); }
+  dailyCount++;
+
+  const clean = (v, n) => String(v || '').trim().slice(0, n);
+  const about = {
+    name,
+    details: {
+      Age: clean(req.body.age, 20),
+      'Favorite thing': clean(req.body.favorite, 120),
+      'Best friend': clean(req.body.friend, 80),
+      'When I grow up': clean(req.body.dream, 120),
+      'More about me': clean(req.body.more, 300),
+    },
+  };
+
+  const id = crypto.randomUUID();
+  const job = { status: 'working', message: 'Starting...', pdf: null, error: null, created: Date.now() };
+  jobs.set(id, job);
+
+  makeBook(photoBuffer, about, (m) => { job.message = m; })
+    .then((pdf) => { job.pdf = pdf; job.status = 'done'; job.message = 'Done!'; })
+    .catch((e) => {
+      console.error(e.message);
+      job.status = 'error';
+      job.error = 'Generation failed. Please try again.';
     });
-  } catch (e) {
-    console.error(e.message);
-    res.status(500).json({ error: 'Generation failed.' });
-  }
+
+  res.json({ id });
+});
+
+app.get('/status/:id', (req, res) => {
+  const job = jobs.get(req.params.id);
+  if (!job) return res.status(404).json({ error: 'Unknown job.' });
+  res.json({ status: job.status, message: job.message, error: job.error });
+});
+
+app.get('/download/:id', (req, res) => {
+  const job = jobs.get(req.params.id);
+  if (!job || job.status !== 'done') return res.status(404).send('Not ready.');
+  res.set({
+    'Content-Type': 'application/pdf',
+    'Content-Disposition': 'attachment; filename="JackAndTheBeanstalk.pdf"',
+  });
+  res.send(job.pdf);
 });
 
 app.use((err, req, res, next) => {
