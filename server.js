@@ -55,12 +55,12 @@ async function shrink(buffer) {
 const png = (buffer) => ({ buffer, mime: 'image/png' });
 
 // Image edit with one or more reference images. Order matters: Image 1, Image 2, ...
-async function edit(inputs, prompt) {
+async function edit(inputs, prompt, quality = QUALITY) {
   const image = await Promise.all(
     inputs.map((x, i) => toFile(x.buffer, `input${i}.png`, { type: x.mime }))
   );
   const res = await client.images.edit({
-    model: MODEL, image, prompt, size: '1024x1024', quality: QUALITY,
+    model: MODEL, image, prompt, size: '1024x1024', quality,
   });
   return Buffer.from(res.data[0].b64_json, 'base64');
 }
@@ -93,7 +93,7 @@ async function makeBook(photoBuffer, about, onProgress) {
   const art = await Promise.all(
     story.PAGES.map(async (page) => {
       const refs = [photo, jack, ...page.refs.map((k) => sheets[k])];
-      const img = await edit(refs, story.pagePrompt(page));
+      const img = await edit(refs, story.pagePrompt(page), page.quality || QUALITY);
       onProgress(`Painting the pages... (${++done}/${story.PAGES.length})`);
       return img;
     })
