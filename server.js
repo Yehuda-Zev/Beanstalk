@@ -42,7 +42,7 @@ const client = new OpenAI();
 const MODEL = 'gpt-image-2';
 const QUALITY = process.env.IMAGE_QUALITY || 'low';
 
-app.use(express.static('public'));
+app.use(express.static('public', { extensions: ['html'] })); // serves /privacy -> privacy.html
 
 async function shrink(buffer) {
   return sharp(buffer)
