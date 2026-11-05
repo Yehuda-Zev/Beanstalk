@@ -193,6 +193,9 @@
   .easel { position: relative; width: min(100%, 340px); margin: 14px auto 12px; padding: 12px 12px 54px; background: #fff; transform: rotate(-1.5deg); box-shadow: 0 8px 18px rgba(0,0,0,.35); }
   .easel img { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; background: #e9eef4; }
   .easel .cap { position: absolute; left: 0; right: 0; bottom: 12px; font: 700 1.7rem/1 var(--hand); color: var(--ink); }
+  .face { max-width: 340px; margin: 6px auto 0; text-align: left; font: 500 1.2rem/1.25 var(--hand); color: var(--ink); }
+  .face h3 { margin: 0 0 4px; font: 700 .95rem/1.2 var(--serif); color: var(--brown); }
+  .face ul { margin: 0; padding-left: 1.1em; }
   .actions { display: grid; justify-items: center; gap: 10px; margin-top: 18px; }
 
   /* ---------- shelf ---------- */
@@ -316,6 +319,7 @@
     <h2>Is this <span id="rvName"></span>?</h2>
     <p class="hint">This is the hero we'll draw into every page. If it's off, try again before we paint the whole story.</p>
     <div class="easel"><img id="rvImg" alt="Drawing of the hero"><div class="cap" id="rvCap"></div></div>
+    <div class="face" id="rvFaceBox" hidden><h3>What we see in the photo</h3><ul id="rvFace"></ul></div>
     <div class="actions">
       <button id="approve" type="button" class="seal">Yes, make the book</button>
       <button id="redraw" type="button" class="linkbtn">Try again (<span id="left"></span> left)</button>
@@ -437,6 +441,9 @@ async function track(id) {
     $('rvName').textContent = s.childName;
     $('rvCap').textContent = s.childName;
     $('rvImg').src = '/sheet/' + id + '?t=' + Date.now();
+    const notes = (s.faceNotes || '').split('\n').map((l) => l.replace(/^[-*\u2022]\s*/, '').trim()).filter(Boolean);
+    $('rvFace').innerHTML = notes.map((n) => '<li>' + esc(n) + '</li>').join('');
+    $('rvFaceBox').hidden = !notes.length;
     $('left').textContent = s.redrawsLeft;
     $('redraw').disabled = s.redrawsLeft < 1;
     $('rvErr').textContent = '';
