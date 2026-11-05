@@ -52,6 +52,14 @@
   </form>
   <div id="status" aria-live="polite"></div>
 
+  <div id="review" hidden>
+    <h2>Does this look like <span id="rvName"></span>?</h2>
+    <img id="rvImg" alt="Character picture" style="max-width:100%;border:1px solid #ccc">
+    <p class="muted">This is how the child will look in the book. If it doesn't look right, redraw it before we draw the whole story.</p>
+    <button id="approve" type="button">Looks good, make my book</button>
+    <button id="redraw" type="button">Redraw (<span id="left"></span> left)</button>
+  </div>
+
   <h2>My books</h2>
   <ul id="books"></ul>
 </section>
@@ -97,7 +105,12 @@ async function loadBooks() {
       const a = document.createElement('a');
       a.href = '/download/' + b.id; a.download = ''; a.textContent = b.childName;
       li.append(a, ' (' + when + ')');
-    } else if (b.status === 'working') {
+    } else if (b.status === 'review') {
+      const btn = document.createElement('button');
+      btn.type = 'button'; btn.textContent = 'Check the character'; btn.style.cssText = 'margin:0;padding:.2rem .6rem';
+      btn.onclick = () => track(b.id);
+      li.append(b.childName + ' (' + when + '): waiting for your approval ', btn);
+    } else if (b.status === 'sheet' || b.status === 'working') {
       anyWorking = true;
       li.textContent = b.childName + ' (' + when + '): still being drawn...';
     } else {
@@ -118,17 +131,38 @@ $('form').addEventListener('submit', async (e) => {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Something went wrong.');
     loadBooks();
-    poll(data.id);
+    track(data.id);
   } catch (err) {
     show(err.message, true);
     go.disabled = false;
   }
 });
 
-async function poll(id) {
+// Follows one book through: drawing the character -> your approval -> drawing the story -> done.
+let trackTimer = null;
+async function track(id) {
+  clearTimeout(trackTimer);
+  $('review').hidden = true;
+  go.disabled = true;
   try {
     const s = await (await api('/status/' + id)).json();
-    if (s.status === 'working') { show(s.message); return setTimeout(() => poll(id), 3000); }
+    if (s.status === 'sheet' || s.status === 'working') {
+      show(s.message);
+      trackTimer = setTimeout(() => track(id), 3000);
+      return;
+    }
+    if (s.status === 'review') {
+      show('');
+      $('rvName').textContent = s.childName;
+      $('rvImg').src = '/sheet/' + id + '?t=' + Date.now();
+      $('left').textContent = s.redrawsLeft;
+      $('redraw').disabled = s.redrawsLeft < 1;
+      $('approve').onclick = () => decide(id, 'approve');
+      $('redraw').onclick = () => decide(id, 'redraw');
+      $('review').hidden = false;
+      loadBooks();
+      return;
+    }
     if (s.status === 'done') {
       statusEl.className = '';
       statusEl.innerHTML = 'Your book is ready! <a href="/download/' + id + '" download>Download JackAndTheBeanstalk.pdf</a>';
@@ -140,6 +174,19 @@ async function poll(id) {
   }
   go.disabled = false;
   loadBooks();
+}
+
+async function decide(id, action) {
+  $('approve').disabled = true; $('redraw').disabled = true;
+  try {
+    const res = await api('/books/' + id + '/' + action, { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Something went wrong.');
+  } catch (err) {
+    show(err.message, true);
+  }
+  $('approve').disabled = false;
+  track(id);
 }
 
 $('logout').addEventListener('click', async () => {
