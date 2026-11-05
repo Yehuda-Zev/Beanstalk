@@ -7,48 +7,117 @@
 <style>
   body { font-family: system-ui, sans-serif; max-width: 520px; margin: 2rem auto; padding: 0 1rem; color: #2b2b2b; }
   h1 { font-size: 1.6rem; }
+  h2 { font-size: 1.15rem; margin-top: 2rem; }
   label { display: block; margin-top: .9rem; font-weight: 600; }
   input[type=text], textarea { width: 100%; padding: .5rem; box-sizing: border-box; font: inherit; }
-  button { margin-top: 1.2rem; padding: .7rem 1.2rem; font: inherit; font-weight: 600; cursor: pointer; }
+  button, .btn { margin-top: 1.2rem; padding: .7rem 1.2rem; font: inherit; font-weight: 600; cursor: pointer; }
+  .btn { display: inline-block; border: 1px solid #888; border-radius: 4px; background: #fff; color: #2b2b2b; text-decoration: none; }
   #status { margin-top: 1.2rem; }
   .err { color: #b00020; }
+  .bar { display: flex; justify-content: space-between; align-items: center; font-size: .9rem; }
+  .bar button { margin: 0; padding: .3rem .7rem; }
+  ul { padding-left: 1.2rem; } li { margin: .4rem 0; }
+  .muted { color: #666; font-size: .9rem; }
+  [hidden] { display: none !important; }
 </style>
 </head>
 <body>
-<h1>Jack and the Beanstalk, starring your child</h1>
-<form id="form">
-  <label>Photo (JPG, PNG, or WebP)
-    <input type="file" name="photo" accept="image/jpeg,image/png,image/webp" required>
-  </label>
-  <label>Password <input type="password" name="password" autocomplete="current-password" required></label>
-  <label>Child's name <input type="text" name="name" maxlength="60" required></label>
-  <label>Age <input type="text" name="age" maxlength="20"></label>
-  <label>Favorite thing <input type="text" name="favorite" maxlength="120"></label>
-  <label>Best friend <input type="text" name="friend" maxlength="80"></label>
-  <label>When I grow up <input type="text" name="dream" maxlength="120"></label>
-  <label>More about me <textarea name="more" rows="3" maxlength="300"></textarea></label>
-  <button id="go" type="submit">Make my book</button>
-</form>
-<div id="status" aria-live="polite"></div>
+
+<!-- Signed out: public landing page (Google requires this to be viewable without logging in) -->
+<section id="out" hidden>
+  <h1>Jack and the Beanstalk, starring your child</h1>
+  <p>Upload a photo and get a personalized cartoon storybook as a PDF. Sign in to make a book and find it again later.</p>
+  <a class="btn" href="/auth/google">Sign in with Google</a>
+</section>
+
+<!-- Signed in -->
+<section id="in" hidden>
+  <div class="bar">
+    <span>Signed in as <strong id="who"></strong></span>
+    <button id="logout" type="button">Sign out</button>
+  </div>
+
+  <h1>Jack and the Beanstalk, starring your child</h1>
+  <form id="form">
+    <label>Photo (JPG, PNG, or WebP)
+      <input type="file" name="photo" accept="image/jpeg,image/png,image/webp" required>
+    </label>
+    <label>Child's name <input type="text" name="name" maxlength="60" required></label>
+    <label>Age <input type="text" name="age" maxlength="20"></label>
+    <label>Favorite thing <input type="text" name="favorite" maxlength="120"></label>
+    <label>Best friend <input type="text" name="friend" maxlength="80"></label>
+    <label>When I grow up <input type="text" name="dream" maxlength="120"></label>
+    <label>More about me <textarea name="more" rows="3" maxlength="300"></textarea></label>
+    <button id="go" type="submit">Make my book</button>
+  </form>
+  <div id="status" aria-live="polite"></div>
+
+  <h2>My books</h2>
+  <ul id="books"></ul>
+</section>
+
+<p class="muted" style="margin-top:2rem"><a href="/privacy">Privacy Policy</a></p>
 
 <script>
-const form = document.getElementById('form');
-const statusEl = document.getElementById('status');
-const go = document.getElementById('go');
+const $ = (id) => document.getElementById(id);
+const statusEl = $('status');
+const go = $('go');
+let polling = null;
 
 function show(msg, isErr) {
   statusEl.className = isErr ? 'err' : '';
   statusEl.textContent = msg;
 }
 
-form.addEventListener('submit', async (e) => {
+async function api(url, opts) {
+  const res = await fetch(url, opts);
+  if (res.status === 401) { location.reload(); throw new Error('Please sign in.'); }
+  return res;
+}
+
+async function init() {
+  let me = null;
+  try { me = (await (await fetch('/api/me')).json()).user; } catch {}
+  if (!me) { $('out').hidden = false; return; }
+  $('who').textContent = me.name || me.email;
+  $('in').hidden = false;
+  loadBooks();
+}
+
+async function loadBooks() {
+  const { books } = await (await api('/api/books')).json();
+  const list = $('books');
+  list.textContent = '';
+  if (!books.length) { list.innerHTML = '<li class="muted">No books yet.</li>'; }
+  let anyWorking = false;
+  for (const b of books) {
+    const li = document.createElement('li');
+    const when = new Date(b.createdAt).toLocaleString();
+    if (b.status === 'done') {
+      const a = document.createElement('a');
+      a.href = '/download/' + b.id; a.download = ''; a.textContent = b.childName;
+      li.append(a, ' (' + when + ')');
+    } else if (b.status === 'working') {
+      anyWorking = true;
+      li.textContent = b.childName + ' (' + when + '): still being drawn...';
+    } else {
+      li.textContent = b.childName + ' (' + when + '): ' + (b.error || 'failed');
+    }
+    list.append(li);
+  }
+  clearTimeout(polling);
+  if (anyWorking) polling = setTimeout(loadBooks, 4000); // also picks up books after a page reload
+}
+
+$('form').addEventListener('submit', async (e) => {
   e.preventDefault();
   go.disabled = true;
   show('Uploading...');
   try {
-    const res = await fetch('/generate', { method: 'POST', body: new FormData(form) });
+    const res = await api('/generate', { method: 'POST', body: new FormData($('form')) });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Something went wrong.');
+    loadBooks();
     poll(data.id);
   } catch (err) {
     show(err.message, true);
@@ -58,8 +127,7 @@ form.addEventListener('submit', async (e) => {
 
 async function poll(id) {
   try {
-    const res = await fetch('/status/' + id);
-    const s = await res.json();
+    const s = await (await api('/status/' + id)).json();
     if (s.status === 'working') { show(s.message); return setTimeout(() => poll(id), 3000); }
     if (s.status === 'done') {
       statusEl.className = '';
@@ -68,10 +136,18 @@ async function poll(id) {
       show(s.error || 'Generation failed.', true);
     }
   } catch {
-    show('Lost connection. Please try again.', true);
+    show('Lost connection. Your book will appear under My books when it is ready.', true);
   }
   go.disabled = false;
+  loadBooks();
 }
+
+$('logout').addEventListener('click', async () => {
+  await fetch('/logout', { method: 'POST' });
+  location.reload();
+});
+
+init();
 </script>
 </body>
 </html>

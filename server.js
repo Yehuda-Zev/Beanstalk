@@ -1,4 +1,11 @@
 require('dotenv').config();
+
+const REQUIRED_ENV = ['DATABASE_URL', 'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'SESSION_SECRET', 'BASE_URL'];
+const missingEnv = REQUIRED_ENV.filter((k) => !process.env[k]);
+if (missingEnv.length) {
+  console.error('Missing environment variables: ' + missingEnv.join(', '));
+  process.exit(1);
+}
 const crypto = require('crypto');
 const express = require('express');
 const multer = require('multer');
@@ -9,11 +16,15 @@ const rateLimit = require('express-rate-limit');
 
 const story = require('./lib/story');
 const { buildPdf } = require('./lib/pdf');
+const db = require('./lib/db');
+const auth = require('./lib/auth');
+const { log, logError } = require('./lib/log');
 
 const app = express();
 app.set('trust proxy', 1); // needed on Render so limits are per visitor, not per proxy
 
-const ipLimiter = rateLimit({
+const userLimiter = rateLimit({
+  keyGenerator: (req) => 'user:' + req.session.user.id,
   windowMs: 60 * 60 * 1000,
   limit: 3,
   standardHeaders: true,
@@ -43,6 +54,20 @@ const MODEL = 'gpt-image-2';
 const QUALITY = process.env.IMAGE_QUALITY || 'low';
 
 app.use(express.static('public', { extensions: ['html'] })); // serves /privacy -> privacy.html
+
+auth.setup(app);
+
+app.use((req, res, next) => {
+  if (req.path.startsWith('/status/')) return next(); // polled every 3s, too noisy
+  const start = Date.now();
+  res.on('finish', () =>
+    log('request', {
+      method: req.method, path: req.path, status: res.statusCode,
+      ms: Date.now() - start, ip: req.ip, userId: req.session && req.session.user ? req.session.user.id : null,
+    })
+  );
+  next();
+});
 
 async function shrink(buffer) {
   return sharp(buffer)
@@ -101,46 +126,20 @@ async function makeBook(photoBuffer, about, onProgress) {
 
   // Step 3: PDF layer draws the text.
   onProgress('Building your book...');
+  const jpgs = await Promise.all(art.map((b) => sharp(b).jpeg({ quality: 88 }).toBuffer()));
   return buildPdf(
-    story.PAGES.map((p, i) => ({ image: art[i], caption: p.caption, textZone: p.textZone })),
+    story.PAGES.map((p, i) => ({ image: jpgs[i], caption: p.caption, textZone: p.textZone })),
     about
   );
 }
 
-// ---------- password gate ----------
-const GENERATOR_PASSWORD = process.env.GENERATOR_PASSWORD;
-if (!GENERATOR_PASSWORD) console.warn('GENERATOR_PASSWORD is not set: generation is disabled.');
+// ---------- books ----------
+// Finished books live in Postgres. Only the progress text lives in memory.
+const progress = new Map();
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-function passwordOk(given) {
-  if (!GENERATOR_PASSWORD) return false; // fail closed
-  const a = crypto.createHash('sha256').update(String(given || '')).digest();
-  const b = crypto.createHash('sha256').update(GENERATOR_PASSWORD).digest();
-  return crypto.timingSafeEqual(a, b);
-}
-
-// Slows password guessing: 10 wrong attempts per IP per 15 minutes.
-const wrongPasswordLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  limit: 10,
-  legacyHeaders: false,
-  standardHeaders: true,
-  skipSuccessfulRequests: true,
-  message: { error: 'Too many wrong passwords. Try again later.' },
-});
-
-function requirePassword(req, res, next) {
-  if (passwordOk(req.body && req.body.password)) return next();
-  res.status(401).json({ error: 'Wrong password.' });
-}
-
-// ---------- jobs (in memory; Render's request timeout is shorter than a book) ----------
-const jobs = new Map();
-setInterval(() => {
-  const cutoff = Date.now() - 60 * 60 * 1000;
-  for (const [id, j] of jobs) if (j.created < cutoff) jobs.delete(id);
-}, 10 * 60 * 1000).unref();
-
-app.post('/generate', wrongPasswordLimiter, upload.single('photo'), requirePassword, ipLimiter, async (req, res) => {
+app.post('/generate', auth.requireLogin, upload.single('photo'), userLimiter, async (req, res) => {
+  const userId = req.session.user.id;
   if (!req.file) return res.status(400).json({ error: 'Please upload a JPG, PNG, or WebP image.' });
   const name = String(req.body.name || '').trim().slice(0, 60);
   if (!name) return res.status(400).json({ error: "Please enter the child's name." });
@@ -164,39 +163,71 @@ app.post('/generate', wrongPasswordLimiter, upload.single('photo'), requirePassw
   };
 
   const id = crypto.randomUUID();
-  const job = { status: 'working', message: 'Starting...', pdf: null, error: null, created: Date.now() };
-  jobs.set(id, job);
+  await db.createBook({ id, userId, childName: name });
+  progress.set(id, 'Starting...');
+  const started = Date.now();
+  log('generate_start', { userId, bookId: id });
 
-  makeBook(photoBuffer, about, (m) => { job.message = m; })
-    .then((pdf) => { job.pdf = pdf; job.status = 'done'; job.message = 'Done!'; })
-    .catch((e) => {
-      console.error(e.message);
-      job.status = 'error';
-      job.error = 'Generation failed. Please try again.';
-    });
+  makeBook(photoBuffer, about, (m) => progress.set(id, m))
+    .then(async (pdf) => {
+      await db.finishBook(id, pdf);
+      log('generate_done', { userId, bookId: id, ms: Date.now() - started, bytes: pdf.length });
+    })
+    .catch(async (e) => {
+      logError('generate_failed', e, { userId, bookId: id, ms: Date.now() - started });
+      await db.failBook(id, 'Generation failed. Please try again.').catch((e2) => logError('fail_book_failed', e2));
+    })
+    .finally(() => progress.delete(id));
 
   res.json({ id });
 });
 
-app.get('/status/:id', (req, res) => {
-  const job = jobs.get(req.params.id);
-  if (!job) return res.status(404).json({ error: 'Unknown job.' });
-  res.json({ status: job.status, message: job.message, error: job.error });
+app.get('/api/books', auth.requireLogin, async (req, res) => {
+  const books = await db.listBooks(req.session.user.id);
+  res.json({
+    books: books.map((b) => ({
+      id: b.id, childName: b.child_name, status: b.status, error: b.error, createdAt: b.created_at,
+    })),
+  });
 });
 
-app.get('/download/:id', (req, res) => {
-  const job = jobs.get(req.params.id);
-  if (!job || job.status !== 'done') return res.status(404).send('Not ready.');
+app.get('/status/:id', auth.requireLogin, async (req, res) => {
+  const { id } = req.params;
+  const book = UUID.test(id) ? await db.getBook(id, req.session.user.id) : null;
+  if (!book) return res.status(404).json({ error: 'Unknown book.' });
+  res.json({
+    status: book.status,
+    message: book.status === 'working' ? progress.get(id) || 'Working...' : book.status === 'done' ? 'Done!' : '',
+    error: book.error,
+  });
+});
+
+app.get('/download/:id', auth.requireLogin, async (req, res) => {
+  const { id } = req.params;
+  const pdf = UUID.test(id) ? await db.getPdf(id, req.session.user.id) : null;
+  if (!pdf) return res.status(404).send('Not ready.');
+  log('download', { userId: req.session.user.id, bookId: id });
   res.set({
     'Content-Type': 'application/pdf',
     'Content-Disposition': 'attachment; filename="JackAndTheBeanstalk.pdf"',
   });
-  res.send(job.pdf);
+  res.send(pdf);
 });
 
 app.use((err, req, res, next) => {
-  res.status(400).json({ error: err.code === 'LIMIT_FILE_SIZE' ? 'Photo too large (8MB max).' : 'Upload failed.' });
+  if (err.code === 'LIMIT_FILE_SIZE') return res.status(400).json({ error: 'Photo too large (8MB max).' });
+  if (err.name === 'MulterError') return res.status(400).json({ error: 'Upload failed.' });
+  logError('unhandled', err, { path: req.path });
+  res.status(500).json({ error: 'Something went wrong.' });
 });
 
 const port = process.env.PORT || 3000;
-app.listen(port, () => console.log('Listening on ' + port));
+(async () => {
+  await db.init();
+  const n = await db.failInterrupted();
+  if (n) log('interrupted_books_marked', { count: n });
+  app.listen(port, () => log('listening', { port }));
+})().catch((e) => {
+  logError('startup_failed', e);
+  process.exit(1);
+});
