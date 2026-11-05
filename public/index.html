@@ -193,9 +193,6 @@
   .easel { position: relative; width: min(100%, 340px); margin: 14px auto 12px; padding: 12px 12px 54px; background: #fff; transform: rotate(-1.5deg); box-shadow: 0 8px 18px rgba(0,0,0,.35); }
   .easel img { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; background: #e9eef4; }
   .easel .cap { position: absolute; left: 0; right: 0; bottom: 12px; font: 700 1.7rem/1 var(--hand); color: var(--ink); }
-  .face { max-width: 340px; margin: 6px auto 0; text-align: left; font: 500 1.2rem/1.25 var(--hand); color: var(--ink); }
-  .face h3 { margin: 0 0 4px; font: 700 .95rem/1.2 var(--serif); color: var(--brown); }
-  .face ul { margin: 0; padding-left: 1.1em; }
   .actions { display: grid; justify-items: center; gap: 10px; margin-top: 18px; }
 
   /* ---------- shelf ---------- */
@@ -319,10 +316,10 @@
     <h2>Is this <span id="rvName"></span>?</h2>
     <p class="hint">This is the hero we'll draw into every page. If it's off, try again before we paint the whole story.</p>
     <div class="easel"><img id="rvImg" alt="Drawing of the hero"><div class="cap" id="rvCap"></div></div>
-    <div class="face" id="rvFaceBox" hidden><h3>What we see in the photo</h3><ul id="rvFace"></ul></div>
     <div class="actions">
       <button id="approve" type="button" class="seal">Yes, make the book</button>
       <button id="redraw" type="button" class="linkbtn">Try again (<span id="left"></span> left)</button>
+      <button id="startover" type="button" class="linkbtn">Start over with a new photo</button>
     </div>
     <p class="msg err" id="rvErr" role="alert"></p>
   </section>
@@ -441,14 +438,12 @@ async function track(id) {
     $('rvName').textContent = s.childName;
     $('rvCap').textContent = s.childName;
     $('rvImg').src = '/sheet/' + id + '?t=' + Date.now();
-    const notes = (s.faceNotes || '').split('\n').map((l) => l.replace(/^[-*\u2022]\s*/, '').trim()).filter(Boolean);
-    $('rvFace').innerHTML = notes.map((n) => '<li>' + esc(n) + '</li>').join('');
-    $('rvFaceBox').hidden = !notes.length;
     $('left').textContent = s.redrawsLeft;
     $('redraw').disabled = s.redrawsLeft < 1;
     $('rvErr').textContent = '';
     $('approve').onclick = () => decide(id, 'approve');
     $('redraw').onclick = () => decide(id, 'redraw');
+    $('startover').onclick = () => startOver(id);
     loadShelf();
     return;
   }
@@ -467,6 +462,19 @@ async function track(id) {
   loadShelf();
 }
 
+async function startOver(id) {
+  $('startover').disabled = true;
+  try {
+    const res = await api('/books/' + id + '/discard', { method: 'POST' });
+    if (!res.ok) throw new Error((await res.json()).error || 'Something went wrong.');
+    resetForm();
+    loadShelf();
+  } catch (err) {
+    $('rvErr').textContent = err.message;
+  }
+  $('startover').disabled = false;
+}
+
 async function decide(id, action) {
   $('approve').disabled = true; $('redraw').disabled = true;
   try {
@@ -479,7 +487,8 @@ async function decide(id, action) {
   $('approve').disabled = false;
   track(id);
 }
-$('again').addEventListener('click', () => { $('form').reset(); $('frame').innerHTML = 'Tap to<br>add a<br>photo'; $('polCap').textContent = ''; showPanel('form'); window.scrollTo({ top: 0 }); });
+function resetForm() { $('form').reset(); $('frame').innerHTML = 'Tap to<br>add a<br>photo'; $('polCap').textContent = ''; showPanel('form'); window.scrollTo({ top: 0 }); }
+$('again').addEventListener('click', resetForm);
 
 /* ---------- the shelf ---------- */
 const VINE = '<svg class="vine" viewBox="0 0 40 70" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M20 68 C8 56 32 46 20 34 C10 24 28 16 20 4"/><path d="M20 58 C30 54 34 46 30 42 C24 46 22 52 20 58Z" fill="currentColor" stroke="none"/><path d="M19 42 C10 40 6 32 10 28 C16 32 18 36 19 42Z" fill="currentColor" stroke="none"/><path d="M21 24 C30 22 33 15 30 11 C25 14 22 18 21 24Z" fill="currentColor" stroke="none"/></svg>';

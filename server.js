@@ -102,29 +102,6 @@ async function generate(prompt) {
 }
 
 // ---------- the pipeline ----------
-// A short written description of the face in the photo, shown to the user next to Jack's picture.
-// It is NOT fed into the image prompts. Failure here never blocks the book.
-const FACE_MODEL = process.env.FACE_MODEL || 'gpt-4o-mini';
-async function describeFace(photoBuffer) {
-  try {
-    const res = await client.chat.completions.create({
-      model: FACE_MODEL,
-      max_tokens: 160,
-      messages: [{
-        role: 'user',
-        content: [
-          { type: 'text', text: 'List the visible facial features of the child in this photo as short bullet points, one per line starting with "- ": face shape, eyes (shape, colour, spacing), eyebrows, nose, mouth and lips, hair (colour, length, style), skin tone, and any glasses or freckles. Describe only what is visible. Do not guess identity, name, or anything else. Under 70 words.' },
-          { type: 'image_url', image_url: { url: 'data:image/png;base64,' + photoBuffer.toString('base64') } },
-        ],
-      }],
-    });
-    return (res.choices[0].message.content || '').trim().slice(0, 700);
-  } catch (e) {
-    logError('describe_face_failed', e);
-    return null;
-  }
-}
-
 // Phase 1: draw Jack from the photo. The user checks this picture before anything else is drawn.
 async function makeJackSheet(photoBuffer) {
   return edit([png(photoBuffer)], story.jackSheetPrompt(), JACK_SHEET_QUALITY);
@@ -171,9 +148,9 @@ const REVIEW_EXPIRY_MINUTES = 60;
 function runSheet(id, userId, photoBuffer) {
   const started = Date.now();
   progress.set(id, 'Drawing the character...');
-  Promise.all([makeJackSheet(photoBuffer), describeFace(photoBuffer)])
-    .then(async ([sheet, faceNotes]) => {
-      await db.setSheet(id, sheet, faceNotes);
+  makeJackSheet(photoBuffer)
+    .then(async (sheet) => {
+      await db.setSheet(id, sheet);
       log('sheet_done', { userId, bookId: id, ms: Date.now() - started });
     })
     .catch(async (e) => {
@@ -262,6 +239,16 @@ app.post('/books/:id/approve', auth.requireLogin, async (req, res) => {
   res.json({ ok: true });
 });
 
+app.post('/books/:id/discard', auth.requireLogin, async (req, res) => {
+  const { id } = req.params;
+  const userId = req.session.user.id;
+  if (!UUID.test(id)) return res.status(404).json({ error: 'Unknown book.' });
+  const ok = await db.discardBook(id, userId);
+  if (!ok) return res.status(409).json({ error: 'This book can no longer be discarded.' });
+  log('discard', { userId, bookId: id });
+  res.json({ ok: true });
+});
+
 app.get('/api/books', auth.requireLogin, async (req, res) => {
   const books = await db.listBooks(req.session.user.id);
   res.json({
@@ -282,7 +269,6 @@ app.get('/status/:id', auth.requireLogin, async (req, res) => {
     redrawsLeft: Math.max(0, MAX_REDRAWS - book.redraws),
     message: working ? progress.get(id) || 'Working...' : book.status === 'done' ? 'Done!' : '',
     error: book.error,
-    faceNotes: book.status === 'review' ? book.face_notes : null,
   });
 });
 
