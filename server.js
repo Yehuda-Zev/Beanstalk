@@ -52,6 +52,8 @@ const upload = multer({
 const client = new OpenAI();
 const MODEL = 'gpt-image-2';
 const QUALITY = process.env.IMAGE_QUALITY || 'low';
+// Jack's character sheet is the likeness anchor for every page, so it gets better quality.
+const JACK_SHEET_QUALITY = process.env.JACK_SHEET_QUALITY || 'medium';
 
 app.use(express.static('public', { extensions: ['html'] })); // serves /privacy -> privacy.html
 
@@ -69,10 +71,14 @@ app.use((req, res, next) => {
   next();
 });
 
+// Square crop centred on the most eye-catching part of the photo (usually the face), up to 1024px.
+// This is a saliency crop, not true face detection: it works best on a clear photo of one person.
 async function shrink(buffer) {
-  return sharp(buffer)
-    .rotate()
-    .resize(768, 768, { fit: 'inside', withoutEnlargement: true })
+  const upright = await sharp(buffer).rotate().toBuffer(); // bake in EXIF orientation first
+  const { width, height } = await sharp(upright).metadata();
+  const side = Math.min(1024, width, height);
+  return sharp(upright)
+    .resize(side, side, { fit: 'cover', position: sharp.strategy.attention })
     .png()
     .toBuffer();
 }
@@ -106,7 +112,7 @@ async function makeBook(photoBuffer, about, onProgress) {
   onProgress('Drawing the characters...');
   const keys = Object.keys(story.CHARACTERS);
   const [jackSheet, ...sideSheets] = await Promise.all([
-    edit([photo], story.jackSheetPrompt()),
+    edit([photo], story.jackSheetPrompt(), JACK_SHEET_QUALITY),
     ...keys.map((k) => generate(story.sideSheetPrompt(k))),
   ]);
   const sheets = Object.fromEntries(keys.map((k, i) => [k, png(sideSheets[i])]));
