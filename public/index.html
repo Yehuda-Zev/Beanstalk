@@ -467,7 +467,8 @@ async function startOver(id) {
   try {
     const res = await api('/books/' + id + '/discard', { method: 'POST' });
     if (!res.ok) throw new Error((await res.json()).error || 'Something went wrong.');
-    resetForm();
+    showPanel('form'); // keeps every field and the old photo; picking a new photo replaces it
+    window.scrollTo({ top: 0 });
     loadShelf();
   } catch (err) {
     $('rvErr').textContent = err.message;
