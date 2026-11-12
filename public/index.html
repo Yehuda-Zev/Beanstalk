@@ -2,56 +2,308 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#24473d">
 <title>Jack and the Beanstalk: Your Book</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,300..900,0..100,0..1;1,9..144,300..900,0..100,0..1&display=swap" rel="stylesheet">
 <style>
-  body { font-family: system-ui, sans-serif; max-width: 520px; margin: 2rem auto; padding: 0 1rem; color: #2b2b2b; }
-  h1 { font-size: 1.6rem; }
-  h2 { font-size: 1.15rem; margin-top: 2rem; }
-  label { display: block; margin-top: .9rem; font-weight: 600; }
-  input[type=text], textarea { width: 100%; padding: .5rem; box-sizing: border-box; font: inherit; }
-  button, .btn { margin-top: 1.2rem; padding: .7rem 1.2rem; font: inherit; font-weight: 600; cursor: pointer; }
-  .btn { display: inline-block; border: 1px solid #888; border-radius: 4px; background: #fff; color: #2b2b2b; text-decoration: none; }
-  #status { margin-top: 1.2rem; }
-  .err { color: #b00020; }
-  .bar { display: flex; justify-content: space-between; align-items: center; font-size: .9rem; }
-  .bar button { margin: 0; padding: .3rem .7rem; }
-  ul { padding-left: 1.2rem; } li { margin: .4rem 0; }
-  .muted { color: #666; font-size: .9rem; }
+  :root {
+    --leather: #24473d;
+    --leather-dark: #183229;
+    --wood: #6f4326;
+    --wood-light: #94603a;
+    --paper: #fffdf4;
+    --paper-line: #d9e2ec;
+    --margin-red: #e8a6a0;
+    --ink: #27336b;
+    --ink-soft: #5a6490;
+    --brown: #5b4636;
+    --gold: #e0b44a;
+    --gold-deep: #b98a22;
+    --wax: #b3322b;
+    --wax-dark: #7e1d19;
+    --serif: "Fraunces", Georgia, "Times New Roman", serif;
+    --hand: "Caveat", "Segoe Print", "Bradley Hand", cursive;
+  }
+  * { box-sizing: border-box; }
   [hidden] { display: none !important; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; min-height: 100vh; color: var(--brown);
+    font-family: var(--serif); font-size: 17px; line-height: 1.5;
+    background:
+      radial-gradient(ellipse at 50% 0%, rgba(255,255,255,.10), transparent 60%),
+      radial-gradient(ellipse at 50% 100%, rgba(0,0,0,.35), transparent 65%),
+      url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 .22 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>"),
+      var(--leather);
+  }
+  /* the edge of the desk */
+  body::before {
+    content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 50;
+    border: 9px solid var(--wood);
+    border-image: linear-gradient(135deg, var(--wood-light), var(--wood) 40%, #54321b) 1;
+    box-shadow: inset 0 0 0 2px rgba(0,0,0,.25), inset 0 6px 14px rgba(0,0,0,.45);
+  }
+  main { padding: 34px 18px 60px; max-width: 1040px; margin: 0 auto; }
+  a { color: inherit; }
+  :focus-visible { outline: 3px solid var(--gold); outline-offset: 3px; border-radius: 6px; }
+
+  /* ---------- wax-seal buttons ---------- */
+  .seal {
+    display: inline-flex; align-items: center; justify-content: center; gap: .6rem;
+    font: 700 1.05rem/1 var(--serif); font-variation-settings: "SOFT" 100, "WONK" 1;
+    color: #ffe9e4; letter-spacing: .01em;
+    padding: 1rem 1.6rem; border: 0; border-radius: 999px; cursor: pointer; text-decoration: none;
+    background: radial-gradient(circle at 30% 25%, #d3574d, var(--wax) 45%, var(--wax-dark));
+    box-shadow: 0 5px 0 #5b1410, 0 10px 18px rgba(0,0,0,.4), inset 0 2px 3px rgba(255,255,255,.35), inset 0 -3px 6px rgba(0,0,0,.3);
+    text-shadow: 0 1px 1px rgba(0,0,0,.5);
+    transition: transform .08s ease, box-shadow .08s ease;
+  }
+  .seal:active { transform: translateY(4px); box-shadow: 0 1px 0 #5b1410, 0 3px 8px rgba(0,0,0,.4), inset 0 2px 3px rgba(255,255,255,.3), inset 0 -3px 6px rgba(0,0,0,.3); }
+  .seal[disabled] { filter: grayscale(.7) brightness(.8); cursor: default; }
+  .seal .g { width: 1.5rem; height: 1.5rem; background: #fff; border-radius: 50%; display: grid; place-items: center; box-shadow: inset 0 0 0 1px rgba(0,0,0,.15); }
+  .seal .g svg { width: .95rem; height: .95rem; }
+  .linkbtn { background: none; border: 0; padding: .4rem .2rem; font: 500 1.35rem var(--hand); color: var(--ink); text-decoration: underline wavy rgba(39,51,107,.35); text-underline-offset: 5px; cursor: pointer; }
+  .linkbtn[disabled] { color: var(--ink-soft); opacity: .5; cursor: default; text-decoration: none; }
+  .foot { text-align: center; margin-top: 44px; font-size: .9rem; color: rgba(255,244,214,.75); }
+  .foot a { text-underline-offset: 3px; }
+
+  /* ---------- the closed book (landing hero + shelf) ---------- */
+  .book {
+    --cover: #8d2b2b; --cover-dark: #5e1717;
+    position: relative; display: block; width: var(--w, 170px); aspect-ratio: 3 / 4; padding: 0; border: 0; background: none;
+    color: var(--gold); font: inherit; cursor: pointer; text-align: center;
+    perspective: 900px; filter: drop-shadow(0 14px 12px rgba(0,0,0,.45));
+  }
+  .book .body {
+    position: absolute; inset: 0; border-radius: 4px 9px 9px 4px; transform-origin: left center; transform: rotateY(0);
+    background:
+      linear-gradient(90deg, rgba(0,0,0,.38) 0, rgba(255,255,255,.14) 4%, rgba(0,0,0,.16) 8%, transparent 14%),
+      url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='c'><feTurbulence type='fractalNoise' baseFrequency='1.4' numOctaves='2'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 .28 0'/></filter><rect width='100%' height='100%' filter='url(%23c)'/></svg>"),
+      linear-gradient(160deg, var(--cover), var(--cover-dark));
+    box-shadow: inset -3px 0 5px rgba(0,0,0,.35), inset 0 0 0 1px rgba(0,0,0,.25);
+    transition: transform .35s cubic-bezier(.2,.7,.2,1);
+  }
+  /* page block peeking out on the right and bottom */
+  .book::before {
+    content: ""; position: absolute; top: 3px; bottom: 3px; right: -5px; width: 8px; border-radius: 0 3px 3px 0;
+    background: repeating-linear-gradient(180deg, #fbf6e6 0 2px, #d8cfb6 2px 3px);
+  }
+  .book .foil {
+    position: absolute; inset: 9% 9% 9% 14%; border: 2px solid var(--gold); border-radius: 3px;
+    display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 8% 6% 7%;
+    box-shadow: inset 0 0 0 3px var(--cover), inset 0 0 0 4px rgba(224,180,74,.55);
+  }
+  .book .t { font: 700 calc(var(--w, 170px) * .105)/1.08 var(--serif); font-variation-settings: "SOFT" 100, "WONK" 1; text-shadow: 0 1px 0 rgba(0,0,0,.4); }
+  .book .vine { width: 38%; color: var(--gold); }
+  .book .who { font: 700 calc(var(--w, 170px) * .17)/1 var(--hand); text-shadow: 0 1px 0 rgba(0,0,0,.4); max-width: 100%; overflow-wrap: anywhere; }
+  .book .who small { display: block; font: 400 calc(var(--w, 170px) * .07)/1.2 var(--serif); font-style: italic; opacity: .85; margin-bottom: .15em; }
+  @media (hover: hover) { .book:hover .body { transform: rotateY(-16deg); } }
+  .book:focus-visible { outline-offset: 8px; }
+  .c0 { --cover: #8d2b2b; --cover-dark: #581515; }
+  .c1 { --cover: #1f4a78; --cover-dark: #102c4a; }
+  .c2 { --cover: #6a3a78; --cover-dark: #3d1f48; }
+  .c3 { --cover: #1f6a5e; --cover-dark: #0f3e36; }
+  .c4 { --cover: #9a6a1b; --cover-dark: #5c3d0b; }
+
+  /* a bookmark ribbon on the hero book */
+  .ribbon { position: absolute; left: 62%; bottom: -26px; width: 18px; height: 54px; background: linear-gradient(90deg, #8f1f1b, #c8433b 50%, #8f1f1b); clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 80%, 0 100%); }
+
+  /* ---------- landing ---------- */
+  .landing { display: grid; justify-items: center; text-align: center; gap: 26px; padding-top: 6vh; }
+  .landing .book { --w: min(62vw, 250px); transform: rotate(-4deg); cursor: default; }
+  .landing .book .body { transition: none; }
+  .landing h1 { margin: 10px 0 0; font: 700 clamp(1.9rem, 6.2vw, 2.7rem)/1.1 var(--serif); font-variation-settings: "SOFT" 100, "WONK" 1; color: #fff4d6; text-shadow: 0 2px 0 rgba(0,0,0,.35); max-width: 15em; }
+  .landing .note { margin: -8px 0 0; max-width: 26em; color: rgba(255,244,214,.85); font-size: 1.05rem; }
+
+  /* ---------- signed in ---------- */
+  .tag { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 0 auto 26px; max-width: 560px; color: rgba(255,244,214,.9); font-size: .95rem; }
+  .tag strong { font-weight: 700; }
+  .tag .linkbtn { color: #ffe9a8; text-decoration-color: rgba(255,233,168,.45); font-size: 1.25rem; }
+
+  .pad {
+    position: relative; max-width: 560px; margin: 0 auto; padding: 44px 28px 34px 56px;
+    background:
+      linear-gradient(90deg, transparent 43px, var(--margin-red) 43px 45px, transparent 45px),
+      repeating-linear-gradient(180deg, transparent 0 38px, var(--paper-line) 38px 39px),
+      var(--paper);
+    background-position: 0 0, 0 12px, 0 0;
+    border-radius: 3px 3px 6px 6px; transform: rotate(-.6deg);
+    box-shadow: 0 1px 0 #fff inset, 0 3px 0 #efe9d3, 0 6px 0 #e3dcc2, 0 18px 28px rgba(0,0,0,.45);
+  }
+  .pad::before { /* gum strip at the head of the pad */
+    content: ""; position: absolute; left: 0; right: 0; top: 0; height: 16px; border-radius: 3px 3px 0 0;
+    background: linear-gradient(#3a2b20, #2a1e16); box-shadow: 0 2px 4px rgba(0,0,0,.35);
+  }
+  .tape { position: absolute; width: 96px; height: 26px; background: rgba(238, 216, 120, .7); box-shadow: 0 1px 2px rgba(0,0,0,.2); }
+  .tape.a { top: 6px; left: -22px; transform: rotate(-35deg); }
+  .tape.b { top: 6px; right: -22px; transform: rotate(35deg); }
+  .pad h2, .panel h2 { margin: 0 0 6px; font: 700 1.7rem/1.15 var(--serif); font-variation-settings: "SOFT" 100, "WONK" 1; color: var(--ink); }
+  .hint { margin: 0 0 14px; font-size: .95rem; color: var(--brown); }
+
+  .hero-row { display: grid; grid-template-columns: 138px 1fr; gap: 18px; align-items: start; margin-bottom: 8px; }
+  .polaroid {
+    display: block; position: relative; width: 138px; padding: 8px 8px 30px; background: #fff; cursor: pointer; transform: rotate(3deg);
+    box-shadow: 0 3px 8px rgba(0,0,0,.3);
+  }
+  .polaroid .frame { display: grid; place-items: center; aspect-ratio: 1; background: #e9eef4; color: var(--ink-soft); text-align: center; font: 500 1.2rem/1.05 var(--hand); overflow: hidden; border: 1px dashed #aab4c8; }
+  .polaroid .frame img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .polaroid .cap { position: absolute; left: 0; right: 0; bottom: 3px; text-align: center; font: 700 1.2rem/1 var(--hand); color: var(--ink); }
+  .polaroid input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; }
+  .polaroid:focus-within { outline: 3px solid var(--gold); outline-offset: 4px; }
+
+  .field { display: flex; align-items: baseline; gap: 10px; margin-top: 0; }
+  .field span { flex: none; font-size: .9rem; line-height: 39px; color: var(--brown); }
+  .field.block { display: block; }
+  .field input, .field textarea {
+    display: block; flex: 1; min-width: 0; width: 100%; border: 0; background: transparent; color: var(--ink); caret-color: var(--wax);
+    font: 500 1.6rem/39px var(--hand); padding: 0; margin: 0; border-radius: 0; outline: 0;
+  }
+  .field input::placeholder, .field textarea::placeholder { color: rgba(90,100,144,.45); }
+  .field input:focus, .field textarea:focus { background: linear-gradient(transparent 34px, var(--wax) 34px 36px, transparent 36px); }
+  .field textarea { resize: none; height: 78px; }
+  .details { margin-top: 10px; }
+  .details > .more-t { font: 700 1.25rem/39px var(--hand); color: var(--ink); }
+  .sendrow { margin-top: 22px; display: flex; justify-content: flex-end; }
+
+  .err { color: #9d1c14; font-weight: 600; }
+  .msg { margin: 12px 0 0; min-height: 1.5em; font-size: .95rem; }
+
+  /* ---------- progress / review / done panels ---------- */
+  .panel {
+    position: relative; max-width: 560px; margin: 0 auto; padding: 34px 26px 30px; text-align: center;
+    background: var(--paper); border-radius: 4px; transform: rotate(.5deg);
+    box-shadow: 0 3px 0 #efe9d3, 0 6px 0 #e3dcc2, 0 18px 28px rgba(0,0,0,.45);
+  }
+  .panel p { margin: 6px 0; }
+  .stitch { list-style: none; display: grid; grid-template-columns: repeat(4, 1fr); margin: 22px 0 6px; padding: 0; position: relative; }
+  .stitch::before { content: ""; position: absolute; left: 12.5%; right: 12.5%; top: 9px; border-top: 3px dashed #c9bfa4; }
+  .stitch li { position: relative; font: 500 1.05rem/1.1 var(--hand); color: var(--ink-soft); padding-top: 28px; }
+  .stitch li::before { content: ""; position: absolute; left: 50%; top: 0; width: 20px; height: 20px; margin-left: -10px; border-radius: 50%; background: var(--paper); border: 3px solid #c9bfa4; }
+  .stitch li.done { color: var(--ink); }
+  .stitch li.done::before { background: var(--ink); border-color: var(--ink); }
+  .stitch li.now { color: var(--wax); font-weight: 700; }
+  .stitch li.now::before { background: var(--wax); border-color: var(--wax); box-shadow: 0 0 0 5px rgba(179,50,43,.2); }
+  @media (prefers-reduced-motion: no-preference) { .stitch li.now::before { animation: pulse 1.4s ease-in-out infinite; } }
+  @keyframes pulse { 50% { box-shadow: 0 0 0 9px rgba(179,50,43,0); } }
+  .working-msg { font: 500 1.6rem/1.2 var(--hand); color: var(--ink); margin-top: 16px !important; }
+
+  .easel { position: relative; width: min(100%, 340px); margin: 14px auto 12px; padding: 12px 12px 54px; background: #fff; transform: rotate(-1.5deg); box-shadow: 0 8px 18px rgba(0,0,0,.35); }
+  .easel img { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; background: #e9eef4; }
+  .easel .cap { position: absolute; left: 0; right: 0; bottom: 12px; font: 700 1.7rem/1 var(--hand); color: var(--ink); }
+  .actions { display: grid; justify-items: center; gap: 10px; margin-top: 18px; }
+
+  /* ---------- shelf ---------- */
+  .shelf-wrap { margin: 64px auto 0; max-width: 960px; }
+  .shelf-wrap h2 { margin: 0 0 24px; text-align: center; font: 700 1.6rem/1.2 var(--serif); font-variation-settings: "SOFT" 100, "WONK" 1; color: #fff4d6; text-shadow: 0 2px 0 rgba(0,0,0,.35); }
+  .shelf { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 40px 14px; justify-items: center; padding: 0 6px; }
+  .slot { position: relative; width: 100%; display: grid; justify-items: center; padding-bottom: 46px; }
+  .slot .book { --w: 138px; }
+  .slot::after { /* the plank */
+    content: ""; position: absolute; left: -8px; right: -8px; bottom: 14px; height: 22px; border-radius: 3px;
+    background: linear-gradient(180deg, var(--wood-light), var(--wood) 55%, #4b2c17);
+    box-shadow: 0 8px 12px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.25); z-index: -1;
+  }
+  .slot .book { margin-bottom: -2px; }
+  .slot .when { position: absolute; bottom: -6px; left: 0; right: 0; text-align: center; font-size: .8rem; color: rgba(255,244,214,.8); }
+  .draft { --w: 138px; position: relative; width: var(--w); aspect-ratio: 3 / 4; display: grid; place-items: center; align-content: center; gap: 8px; padding: 12px; text-align: center; color: var(--ink);
+    background: var(--paper); border: 2px dashed #b9b19a; border-radius: 4px 8px 8px 4px; font: 500 1.15rem/1.15 var(--hand); transform: rotate(-1.5deg); box-shadow: 0 10px 10px rgba(0,0,0,.35); }
+  .draft b { font: 700 1.5rem/1 var(--hand); overflow-wrap: anywhere; }
+  .draft.bad { opacity: .75; filter: grayscale(.4); }
+  .draft .linkbtn { font-size: 1.15rem; }
+  .empty { grid-column: 1 / -1; text-align: center; color: rgba(255,244,214,.85); padding: 10px 0 36px; font-style: italic; }
+  .empty + .slot, .slot:only-child { }
+  @media (prefers-reduced-motion: no-preference) {
+    .fresh .book { animation: drop .7s cubic-bezier(.2,1.4,.4,1) both; }
+    @keyframes drop { from { transform: translateY(-80px) rotate(-8deg); opacity: 0; } to { transform: none; opacity: 1; } }
+  }
+
+  /* ---------- reader ---------- */
+  .reader { position: fixed; inset: 0; z-index: 100; display: grid; grid-template-rows: auto 1fr auto; padding: max(14px, env(safe-area-inset-top)) 14px max(14px, env(safe-area-inset-bottom));
+    background: radial-gradient(ellipse at 50% 30%, #2a2018, #0c0906); }
+  .reader .top { display: flex; justify-content: space-between; align-items: center; color: #fff4d6; font-family: var(--hand); font-size: 1.6rem; }
+  .reader .x { background: none; border: 0; color: #fff4d6; font-size: 2.2rem; line-height: 1; cursor: pointer; padding: .2rem .6rem; }
+  .spread { display: flex; justify-content: center; align-items: center; min-height: 0; perspective: 1600px; }
+  .pg { background: #fff; box-shadow: 0 10px 30px rgba(0,0,0,.6); line-height: 0; }
+  .pg canvas { display: block; }
+  .spread.two .pg:first-child { border-radius: 4px 0 0 4px; box-shadow: -10px 10px 30px rgba(0,0,0,.6), inset -14px 0 14px -10px rgba(0,0,0,.35); }
+  .spread.two .pg:last-child { border-radius: 0 4px 4px 0; box-shadow: 10px 10px 30px rgba(0,0,0,.6), inset 14px 0 14px -10px rgba(0,0,0,.35); }
+  .spread.single .pg { border-radius: 4px; }
+  @media (prefers-reduced-motion: no-preference) { .spread.turn .pg:last-child { animation: flip .35s ease-out; transform-origin: left center; } @keyframes flip { from { transform: rotateY(-70deg); opacity: .3; } } }
+  .rd-bar { display: flex; justify-content: center; align-items: center; gap: 14px; padding-top: 12px; color: #fff4d6; flex-wrap: wrap; }
+  .rd-bar button, .rd-bar a { background: rgba(255,244,214,.12); color: #fff4d6; border: 1px solid rgba(255,244,214,.35); border-radius: 999px; padding: .5rem 1.1rem; font: 600 .95rem var(--serif); cursor: pointer; text-decoration: none; }
+  .rd-bar button[disabled] { opacity: .35; cursor: default; }
+  .rd-bar .count { font-size: .9rem; min-width: 7em; text-align: center; }
+
+  @media (max-width: 520px) {
+    main { padding: 26px 14px 50px; }
+    .pad { padding: 40px 18px 28px 46px; background-position: -10px 0, 0 12px, 0 0; }
+    .hero-row { grid-template-columns: 112px 1fr; gap: 12px; }
+    .polaroid { width: 112px; padding: 6px 6px 26px; }
+    .polaroid .cap { font-size: 1.05rem; }
+    .field input, .field textarea { font-size: 1.45rem; }
+    .stitch li { font-size: .95rem; }
+  }
 </style>
 </head>
 <body>
+<main>
 
-<!-- Signed out: public landing page (Google requires this to be viewable without logging in) -->
-<section id="out" hidden>
-  <h1>Jack and the Beanstalk, starring your child</h1>
-  <p>Upload a photo and get a personalized cartoon storybook as a PDF. Sign in to make a book and find it again later.</p>
-  <a class="btn" href="/auth/google">Sign in with Google</a>
+<!-- Signed out: a closed book on the desk. Public page, so Google can verify it. -->
+<section id="out" class="landing" hidden>
+  <div class="book c0" aria-hidden="true">
+    <div class="body"><div class="foil">
+      <div class="t">Jack and the Beanstalk</div>
+      <svg class="vine" viewBox="0 0 40 70" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M20 68 C8 56 32 46 20 34 C10 24 28 16 20 4"/><path d="M20 58 C30 54 34 46 30 42 C24 46 22 52 20 58Z" fill="currentColor" stroke="none"/><path d="M19 42 C10 40 6 32 10 28 C16 32 18 36 19 42Z" fill="currentColor" stroke="none"/><path d="M21 24 C30 22 33 15 30 11 C25 14 22 18 21 24Z" fill="currentColor" stroke="none"/></svg>
+      <div class="who"><small>starring</small>your child</div>
+    </div></div>
+    <span class="ribbon"></span>
+  </div>
+  <h1>A storybook with your child as Jack</h1>
+  <p class="note">Upload a photo and we draw your child into the story. Sign in to start a book and keep it on your shelf.</p>
+  <a class="seal" href="/auth/google">
+    <span class="g"><svg viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg></span>
+    Sign in with Google
+  </a>
 </section>
 
 <!-- Signed in -->
 <section id="in" hidden>
-  <div class="bar">
+  <div class="tag">
     <span>Signed in as <strong id="who"></strong></span>
-    <button id="logout" type="button">Sign out</button>
+    <button id="logout" type="button" class="linkbtn">Sign out</button>
   </div>
 
-  <h1>Jack and the Beanstalk, starring your child</h1>
-  <form id="form">
-    <label>Photo (JPG, PNG, or WebP)
-      <input type="file" name="photo" accept="image/jpeg,image/png,image/webp" required>
-    </label>
-    <label>Child's name <input type="text" name="name" maxlength="60" required></label>
-    <label>Age <input type="text" name="age" maxlength="20"></label>
-    <label>Favorite thing <input type="text" name="favorite" maxlength="120"></label>
-    <label>Best friend <input type="text" name="friend" maxlength="80"></label>
-    <label>When I grow up <input type="text" name="dream" maxlength="120"></label>
-    <label>More about me <textarea name="more" rows="3" maxlength="300"></textarea></label>
-    <button id="go" type="submit">Make my book</button>
+  <!-- 1. the notepad -->
+  <form id="form" class="pad" autocomplete="off">
+    <span class="tape a"></span><span class="tape b"></span>
+    <h2>Who is the hero?</h2>
+    <p class="hint">A clear photo of just their face works best.</p>
+    <div class="hero-row">
+      <label class="polaroid">
+        <div class="frame" id="frame">Tap to<br>add a<br>photo</div>
+        <span class="cap" id="polCap"></span>
+        <input type="file" name="photo" accept="image/jpeg,image/png,image/webp" required aria-label="Photo of the child">
+      </label>
+      <div>
+        <label class="field"><span>Name</span><input type="text" name="name" id="nameIn" maxlength="60" required placeholder="Their name"></label>
+        <label class="field"><span>Age</span><input type="text" name="age" maxlength="20" placeholder="Age"></label>
+      </div>
+    </div>
+    <div class="details">
+      <div class="more-t">A few things for the last page</div>
+      <label class="field"><span>Favorite thing</span><input type="text" name="favorite" maxlength="120"></label>
+      <label class="field"><span>Best friend</span><input type="text" name="friend" maxlength="80"></label>
+      <label class="field"><span>When I grow up</span><input type="text" name="dream" maxlength="120"></label>
+      <label class="field block"><span>More about me</span><textarea name="more" maxlength="300"></textarea></label>
+    </div>
+    <p class="msg err" id="formErr" role="alert"></p>
+    <div class="sendrow"><button id="go" type="submit" class="seal">Draw my hero</button></div>
   </form>
-  <div id="status" aria-live="polite"></div>
 
+<<<<<<< HEAD
   <div id="review" hidden>
     <h2>Does this look like <span id="rvName"></span>?</h2>
     <img id="rvImg" alt="Character picture" style="max-width:100%;border:1px solid #ccc">
@@ -62,36 +314,85 @@
 
   <h2>My books</h2>
   <ul id="books"></ul>
+=======
+  <!-- 2. progress -->
+  <section id="progress" class="panel" hidden aria-live="polite">
+    <h2 id="pgTitle">Working on it</h2>
+    <ol class="stitch" id="stitch"></ol>
+    <p class="working-msg" id="pgMsg"></p>
+    <p class="hint">You can leave this page. The book will wait on your shelf.</p>
+  </section>
+
+  <!-- 3. approval -->
+  <section id="review" class="panel" hidden>
+    <h2>Is this <span id="rvName"></span>?</h2>
+    <p class="hint">This is the hero we'll draw into every page. If it's off, try again before we paint the whole story.</p>
+    <div class="easel"><img id="rvImg" alt="Drawing of the hero"><div class="cap" id="rvCap"></div></div>
+    <div class="actions">
+      <button id="approve" type="button" class="seal">Yes, make the book</button>
+      <button id="redraw" type="button" class="linkbtn">Try again (<span id="left"></span> left)</button>
+      <button id="startover" type="button" class="linkbtn">Start over with a new photo</button>
+    </div>
+    <p class="msg err" id="rvErr" role="alert"></p>
+  </section>
+
+  <!-- 4. done / failed -->
+  <section id="result" class="panel" hidden>
+    <h2 id="rsTitle"></h2>
+    <p id="rsMsg"></p>
+    <div class="actions"><button id="again" type="button" class="seal">Start another book</button></div>
+  </section>
+
+  <!-- the shelf -->
+  <section class="shelf-wrap">
+    <h2>My bookshelf</h2>
+    <div class="shelf" id="shelf"></div>
+  </section>
+>>>>>>> e77a76b8da99960b6e529720019a195a49617ead
 </section>
 
-<p class="muted" style="margin-top:2rem"><a href="/privacy">Privacy Policy</a></p>
+<p class="foot"><a href="/privacy">Privacy policy</a></p>
+</main>
+
+<!-- reader -->
+<div id="reader" class="reader" hidden role="dialog" aria-modal="true" aria-label="Reading a book">
+  <div class="top"><span id="rdTitle"></span><button class="x" id="rdClose" type="button" aria-label="Close book">&times;</button></div>
+  <div class="spread single" id="spread"><div class="pg"><canvas></canvas></div><div class="pg" hidden><canvas></canvas></div></div>
+  <div class="rd-bar">
+    <button id="rdPrev" type="button">Previous</button>
+    <span class="count" id="rdCount"></span>
+    <button id="rdNext" type="button">Next</button>
+    <a id="rdDownload" download="JackAndTheBeanstalk.pdf">Download PDF</a>
+  </div>
+</div>
 
 <script>
 const $ = (id) => document.getElementById(id);
-const statusEl = $('status');
-const go = $('go');
-let polling = null;
+const PANELS = ['form', 'progress', 'review', 'result'];
+const STEPS = ['Draw', 'Check', 'Paint', 'Bind'];
+let me = null, shelfTimer = null, trackTimer = null, freshId = null;
 
-function show(msg, isErr) {
-  statusEl.className = isErr ? 'err' : '';
-  statusEl.textContent = msg;
-}
-
+function showPanel(name) { for (const p of PANELS) $(p).hidden = p !== name; }
 async function api(url, opts) {
   const res = await fetch(url, opts);
   if (res.status === 401) { location.reload(); throw new Error('Please sign in.'); }
   return res;
 }
 
+/* ---------- start-up ---------- */
 async function init() {
-  let me = null;
   try { me = (await (await fetch('/api/me')).json()).user; } catch {}
   if (!me) { $('out').hidden = false; return; }
   $('who').textContent = me.name || me.email;
   $('in').hidden = false;
-  loadBooks();
+  loadShelf();
+  // pick up a book that is mid-way (page reload, or opened on another device)
+  const { books } = await (await api('/api/books')).json();
+  const open = books.find((b) => ['sheet', 'review', 'working'].includes(b.status));
+  if (open) track(open.id);
 }
 
+<<<<<<< HEAD
 async function loadBooks() {
   const { books } = await (await api('/api/books')).json();
   const list = $('books');
@@ -121,23 +422,41 @@ async function loadBooks() {
   clearTimeout(polling);
   if (anyWorking) polling = setTimeout(loadBooks, 4000); // also picks up books after a page reload
 }
+=======
+/* ---------- the notepad ---------- */
+const nameIn = $('nameIn');
+nameIn.addEventListener('input', () => { $('polCap').textContent = nameIn.value.trim().split(/\s+/)[0] || ''; });
+$('form').elements.photo.addEventListener('change', (e) => {
+  const f = e.target.files[0];
+  if (!f) return;
+  const img = document.createElement('img');
+  img.alt = 'Chosen photo';
+  img.src = URL.createObjectURL(f);
+  $('frame').textContent = ''; $('frame').append(img);
+});
+>>>>>>> e77a76b8da99960b6e529720019a195a49617ead
 
 $('form').addEventListener('submit', async (e) => {
   e.preventDefault();
-  go.disabled = true;
-  show('Uploading...');
+  $('formErr').textContent = '';
+  $('go').disabled = true;
   try {
     const res = await api('/generate', { method: 'POST', body: new FormData($('form')) });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Something went wrong.');
+<<<<<<< HEAD
     loadBooks();
+=======
+    loadShelf();
+>>>>>>> e77a76b8da99960b6e529720019a195a49617ead
     track(data.id);
   } catch (err) {
-    show(err.message, true);
-    go.disabled = false;
+    $('formErr').textContent = err.message;
   }
+  $('go').disabled = false;
 });
 
+<<<<<<< HEAD
 // Follows one book through: drawing the character -> your approval -> drawing the story -> done.
 let trackTimer = null;
 async function track(id) {
@@ -193,7 +512,214 @@ $('logout').addEventListener('click', async () => {
   await fetch('/logout', { method: 'POST' });
   location.reload();
 });
+=======
+/* ---------- following one book through its steps ---------- */
+function stageOf(s) {
+  if (s.status === 'sheet') return 0;
+  if (s.status === 'review') return 1;
+  if (s.status === 'working') return /Building/.test(s.message || '') ? 3 : 2;
+  return 4;
+}
+function drawStitch(stage) {
+  $('stitch').innerHTML = STEPS.map((t, i) =>
+    `<li class="${i < stage ? 'done' : i === stage ? 'now' : ''}">${t}</li>`).join('');
+}
 
+async function track(id) {
+  clearTimeout(trackTimer);
+  let s;
+  try { s = await (await api('/status/' + id)).json(); }
+  catch { $('pgMsg').textContent = 'Lost the connection. Your book will wait on the shelf.'; return; }
+>>>>>>> e77a76b8da99960b6e529720019a195a49617ead
+
+  if (s.status === 'sheet' || s.status === 'working') {
+    showPanel('progress');
+    $('pgTitle').textContent = s.status === 'sheet' ? 'Drawing the hero' : 'Painting the story';
+    $('pgMsg').textContent = s.message;
+    drawStitch(stageOf(s));
+    trackTimer = setTimeout(() => track(id), 3000);
+    return;
+  }
+  if (s.status === 'review') {
+    showPanel('review');
+    $('rvName').textContent = s.childName;
+    $('rvCap').textContent = s.childName;
+    $('rvImg').src = '/sheet/' + id + '?t=' + Date.now();
+    $('left').textContent = s.redrawsLeft;
+    $('redraw').disabled = s.redrawsLeft < 1;
+    $('rvErr').textContent = '';
+    $('approve').onclick = () => decide(id, 'approve');
+    $('redraw').onclick = () => decide(id, 'redraw');
+    $('startover').onclick = () => startOver(id);
+    loadShelf();
+    return;
+  }
+  if (s.status === 'done') {
+    freshId = id;
+    showPanel('result');
+    $('rsTitle').textContent = 'Your book is ready';
+    $('rsMsg').textContent = 'It is on your shelf below.';
+    await loadShelf();
+    document.querySelector('.shelf-wrap').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+    return;
+  }
+  showPanel('result');
+  $('rsTitle').textContent = 'That one didn’t work';
+  $('rsMsg').textContent = s.error || 'Something went wrong. Please try again.';
+  loadShelf();
+}
+
+async function startOver(id) {
+  $('startover').disabled = true;
+  try {
+    const res = await api('/books/' + id + '/discard', { method: 'POST' });
+    if (!res.ok) throw new Error((await res.json()).error || 'Something went wrong.');
+    showPanel('form'); // keeps every field and the old photo; picking a new photo replaces it
+    window.scrollTo({ top: 0 });
+    loadShelf();
+  } catch (err) {
+    $('rvErr').textContent = err.message;
+  }
+  $('startover').disabled = false;
+}
+
+async function decide(id, action) {
+  $('approve').disabled = true; $('redraw').disabled = true;
+  try {
+    const res = await api('/books/' + id + '/' + action, { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Something went wrong.');
+  } catch (err) {
+    $('rvErr').textContent = err.message;
+  }
+  $('approve').disabled = false;
+  track(id);
+}
+function resetForm() { $('form').reset(); $('frame').innerHTML = 'Tap to<br>add a<br>photo'; $('polCap').textContent = ''; showPanel('form'); window.scrollTo({ top: 0 }); }
+$('again').addEventListener('click', resetForm);
+
+/* ---------- the shelf ---------- */
+const VINE = '<svg class="vine" viewBox="0 0 40 70" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M20 68 C8 56 32 46 20 34 C10 24 28 16 20 4"/><path d="M20 58 C30 54 34 46 30 42 C24 46 22 52 20 58Z" fill="currentColor" stroke="none"/><path d="M19 42 C10 40 6 32 10 28 C16 32 18 36 19 42Z" fill="currentColor" stroke="none"/><path d="M21 24 C30 22 33 15 30 11 C25 14 22 18 21 24Z" fill="currentColor" stroke="none"/></svg>';
+const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+async function loadShelf() {
+  const { books } = await (await api('/api/books')).json();
+  const shelf = $('shelf');
+  shelf.textContent = '';
+  if (!books.length) shelf.innerHTML = '<p class="empty">Your first book will sit here.</p>';
+  let busy = false;
+  books.forEach((b, i) => {
+    const slot = document.createElement('div');
+    slot.className = 'slot' + (b.id === freshId ? ' fresh' : '');
+    const when = new Date(b.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    if (b.status === 'done') {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'book c' + (i % 5);
+      btn.setAttribute('aria-label', 'Open the book starring ' + b.childName);
+      btn.innerHTML = '<div class="body"><div class="foil"><div class="t">Jack and the Beanstalk</div>' + VINE +
+        '<div class="who"><small>starring</small>' + esc(b.childName) + '</div></div></div>';
+      btn.onclick = () => openReader(b);
+      slot.append(btn);
+    } else {
+      const d = document.createElement('div');
+      d.className = 'draft' + (b.status === 'error' ? ' bad' : '');
+      if (b.status === 'review') {
+        d.innerHTML = '<b>' + esc(b.childName) + '</b>Waiting for you to check the hero';
+        const k = document.createElement('button'); k.type = 'button'; k.className = 'linkbtn'; k.textContent = 'Check it';
+        k.onclick = () => { track(b.id); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+        d.append(k);
+      } else if (b.status === 'error') {
+        d.innerHTML = '<b>' + esc(b.childName) + '</b>This one didn’t work';
+      } else {
+        busy = true;
+        d.innerHTML = '<b>' + esc(b.childName) + '</b>Still being drawn…';
+      }
+      slot.append(d);
+    }
+    const w = document.createElement('div'); w.className = 'when'; w.textContent = when; slot.append(w);
+    shelf.append(slot);
+  });
+  freshId = null;
+  clearTimeout(shelfTimer);
+  if (busy) shelfTimer = setTimeout(loadShelf, 5000);
+}
+
+/* ---------- the reader ---------- */
+const PDFJS = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
+let pdfDoc = null, rdPage = 1, rdOpener = null;
+function loadPdfJs() {
+  if (window.pdfjsLib) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = PDFJS + 'pdf.min.js';
+    s.onload = () => { pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS + 'pdf.worker.min.js'; resolve(); };
+    s.onerror = () => reject(new Error('Could not load the reader.'));
+    document.head.append(s);
+  });
+}
+const wide = () => innerWidth >= 900;
+
+async function openReader(b) {
+  rdOpener = document.activeElement;
+  $('reader').hidden = false;
+  $('rdTitle').textContent = 'Jack and the Beanstalk, starring ' + b.childName;
+  $('rdDownload').href = '/download/' + b.id;
+  $('rdCount').textContent = 'Opening…';
+  $('rdClose').focus();
+  document.body.style.overflow = 'hidden';
+  try {
+    await loadPdfJs();
+    pdfDoc = await pdfjsLib.getDocument('/download/' + b.id).promise;
+    rdPage = 1;
+    await paintSpread(false);
+  } catch (e) {
+    $('rdCount').textContent = 'Could not open the book. Use Download PDF instead.';
+  }
+}
+function closeReader() {
+  $('reader').hidden = true; pdfDoc = null; document.body.style.overflow = '';
+  if (rdOpener) rdOpener.focus();
+}
+async function paintCanvas(canvas, num, cssW) {
+  const page = await pdfDoc.getPage(num);
+  const dpr = Math.min(devicePixelRatio || 1, 2);
+  const vp0 = page.getViewport({ scale: 1 });
+  const vp = page.getViewport({ scale: (cssW / vp0.width) * dpr });
+  canvas.width = vp.width; canvas.height = vp.height;
+  canvas.style.width = cssW + 'px'; canvas.style.height = (vp.height / dpr) + 'px';
+  await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
+}
+async function paintSpread(animate) {
+  const n = pdfDoc.numPages, two = wide();
+  const spread = $('spread');
+  spread.className = 'spread ' + (two ? 'two' : 'single');
+  const availH = innerHeight - 170;
+  const side = two ? Math.min(560, (innerWidth - 120) / 2, availH) : Math.min(innerWidth - 28, availH, 640);
+  const [left, right] = spread.querySelectorAll('.pg');
+  right.hidden = !two;
+  if (two) rdPage = rdPage % 2 === 0 ? rdPage - 1 : rdPage; // spreads start on odd pages
+  await paintCanvas(left.firstElementChild, rdPage, side);
+  if (two && rdPage + 1 <= n) { right.hidden = false; await paintCanvas(right.firstElementChild, rdPage + 1, side); }
+  else if (two) right.hidden = true;
+  $('rdCount').textContent = two && rdPage + 1 <= n ? 'Pages ' + rdPage + '–' + (rdPage + 1) + ' of ' + n : 'Page ' + rdPage + ' of ' + n;
+  $('rdPrev').disabled = rdPage <= 1;
+  $('rdNext').disabled = rdPage + (two ? 2 : 1) > n;
+  if (animate) { spread.classList.remove('turn'); void spread.offsetWidth; spread.classList.add('turn'); }
+}
+function turn(dir) { if (!pdfDoc) return; rdPage = Math.max(1, rdPage + dir * (wide() ? 2 : 1)); paintSpread(true); }
+$('rdPrev').onclick = () => turn(-1);
+$('rdNext').onclick = () => turn(1);
+$('rdClose').onclick = closeReader;
+addEventListener('keydown', (e) => {
+  if ($('reader').hidden) return;
+  if (e.key === 'Escape') closeReader();
+  if (e.key === 'ArrowRight') turn(1);
+  if (e.key === 'ArrowLeft') turn(-1);
+});
+addEventListener('resize', () => { if (pdfDoc && !$('reader').hidden) paintSpread(false); });
+
+$('logout').addEventListener('click', async () => { await fetch('/logout', { method: 'POST' }); location.reload(); });
 init();
 </script>
 </body>

@@ -239,6 +239,19 @@ app.post('/books/:id/approve', auth.requireLogin, async (req, res) => {
   res.json({ ok: true });
 });
 
+<<<<<<< HEAD
+=======
+app.post('/books/:id/discard', auth.requireLogin, async (req, res) => {
+  const { id } = req.params;
+  const userId = req.session.user.id;
+  if (!UUID.test(id)) return res.status(404).json({ error: 'Unknown book.' });
+  const ok = await db.discardBook(id, userId);
+  if (!ok) return res.status(409).json({ error: 'This book can no longer be discarded.' });
+  log('discard', { userId, bookId: id });
+  res.json({ ok: true });
+});
+
+>>>>>>> e77a76b8da99960b6e529720019a195a49617ead
 app.get('/api/books', auth.requireLogin, async (req, res) => {
   const books = await db.listBooks(req.session.user.id);
   res.json({
