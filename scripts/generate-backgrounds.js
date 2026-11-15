@@ -7,7 +7,7 @@ const OpenAI = require('openai');
 
 const template = require('../lib/template');
 const db = require('../lib/db');
-const { makeBackground } = require('../lib/background');
+const { setKey, ensureSheets, makeBackground } = require('../lib/background');
 
 async function main() {
   const bookName = process.argv[2];
@@ -19,16 +19,18 @@ async function main() {
 
   await db.init();
   const client = new OpenAI();
-  const existing = await db.getBackgrounds(book.id);
+  const set = setKey(book);
+  const existing = await db.getBackgrounds(set);
+  const sheets = await ensureSheets(client, book);
   for (const page of book.pages) {
     if (existing[page.n]) {
       console.log(`page ${page.n}: already stored, skipped`);
       continue;
     }
-    await makeBackground(client, book.id, page);
+    await makeBackground(client, book, page, sheets);
     console.log(`page ${page.n}: stored`);
   }
-  console.log(`done: ${book.pages.length} pages for ${book.id}`);
+  console.log(`done: ${book.pages.length} pages for ${set}`);
   await db.pool.end();
 }
 

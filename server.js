@@ -17,7 +17,7 @@ const rateLimit = require('express-rate-limit');
 const story = require('./lib/story');
 const book = require('./lib/books/beanstalk');
 const template = require('./lib/template');
-const { makeBackground } = require('./lib/background');
+const { setKey, ensureSheets, makeBackground } = require('./lib/background');
 const { buildPdf } = require('./lib/pdf');
 const db = require('./lib/db');
 const auth = require('./lib/auth');
@@ -125,29 +125,31 @@ Avoid: any text, letters, watermarks, split panels.`;
 const backgroundInFlight = new Map();
 const BACKGROUND_BATCH = 5; // simultaneous background requests
 async function ensureBackgrounds(onProgress) {
-  const stored = await db.getBackgrounds(book.id);
+  const set = setKey(book);
+  const stored = await db.getBackgrounds(set);
   const missing = book.pages.filter((p) => !stored[p.n]);
   if (!missing.length) return stored;
 
   onProgress(`Preparing the pictures... (0/${missing.length})`);
+  const sheets = await ensureSheets(client, book);
   let done = 0;
   // Batches keep the number of simultaneous image requests under the OpenAI rate limit.
   for (let i = 0; i < missing.length; i += BACKGROUND_BATCH) {
     const batch = missing.slice(i, i + BACKGROUND_BATCH);
     await Promise.all(
       batch.map((page) => {
-        const key = `${book.id}:${page.n}`;
+        const key = `${set}:${page.n}`;
         if (!backgroundInFlight.has(key)) {
           backgroundInFlight.set(
             key,
-            makeBackground(client, book.id, page).finally(() => backgroundInFlight.delete(key))
+            makeBackground(client, book, page, sheets).finally(() => backgroundInFlight.delete(key))
           );
         }
         return backgroundInFlight.get(key).then(() => onProgress(`Preparing the pictures... (${++done}/${missing.length})`));
       })
     );
   }
-  return db.getBackgrounds(book.id);
+  return db.getBackgrounds(set);
 }
 
 // Phase 2 (after approval): Jack is added to each stored background, then the PDF is built.
