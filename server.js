@@ -15,6 +15,8 @@ const { toFile } = require('openai');
 const rateLimit = require('express-rate-limit');
 
 const story = require('./lib/story');
+const book = require('./lib/books/beanstalk');
+const template = require('./lib/template');
 const { buildPdf } = require('./lib/pdf');
 const db = require('./lib/db');
 const auth = require('./lib/auth');
@@ -107,24 +109,34 @@ async function makeJackSheet(photoBuffer) {
   return edit([png(photoBuffer)], story.jackSheetPrompt(), JACK_SHEET_QUALITY);
 }
 
-// Phase 2 (after approval): the other characters, then the pages, then the PDF.
+// Adds Jack to one page's stored background. The side characters are already in the background.
+function pageEditPrompt(page) {
+  return `Image 1 is the storybook background for this page. Image 2 is the reference for Jack, a child.
+Add Jack into Image 1 so he matches Image 2 exactly: same face, hair, skin tone and clothes.
+Place him in this scene: ${page.scene}
+Style: ${story.STYLE}
+Keep everything else in Image 1 exactly as it is. Keep Jack's face in the middle third of the picture.
+Avoid: any text, letters, watermarks, split panels.`;
+}
+
+// Phase 2 (after approval): Jack is added to each stored background, then the PDF is built.
 async function makePages(photoBuffer, sheetBuffer, about, onProgress) {
-  const photo = png(photoBuffer);
+  const problems = template.validateBook(book);
+  if (problems.length) throw new Error('Book is not valid: ' + problems.join(' '));
+
+  const backgrounds = await db.getBackgrounds(book.id);
+  const missing = book.pages.filter((p) => !backgrounds[p.n]).map((p) => p.n);
+  if (missing.length) throw new Error(`Backgrounds missing for pages: ${missing.join(', ')}`);
+
   const jack = png(sheetBuffer);
-
-  onProgress('Drawing the other characters...');
-  const keys = Object.keys(story.CHARACTERS);
-  const sideSheets = await Promise.all(keys.map((k) => generate(story.sideSheetPrompt(k))));
-  const sheets = Object.fromEntries(keys.map((k, i) => [k, png(sideSheets[i])]));
-
-  // Every page call gets: photo, Jack sheet, then that page's side sheets. Pages run in parallel.
-  onProgress(`Painting the pages... (0/${story.PAGES.length})`);
+  const total = book.pages.length;
+  onProgress(`Painting the pages... (0/${total})`);
   let done = 0;
+  // Pages run in parallel. Each call gets the page background (Image 1) and Jack's sheet (Image 2).
   const art = await Promise.all(
-    story.PAGES.map(async (page) => {
-      const refs = [photo, jack, ...page.refs.map((k) => sheets[k])];
-      const img = await edit(refs, story.pagePrompt(page), page.quality || QUALITY);
-      onProgress(`Painting the pages... (${++done}/${story.PAGES.length})`);
+    book.pages.map(async (page) => {
+      const img = await edit([png(backgrounds[page.n]), jack], pageEditPrompt(page));
+      onProgress(`Painting the pages... (${++done}/${total})`);
       return img;
     })
   );
@@ -133,7 +145,7 @@ async function makePages(photoBuffer, sheetBuffer, about, onProgress) {
   onProgress('Building your book...');
   const jpgs = await Promise.all(art.map((b) => sharp(b).jpeg({ quality: 88 }).toBuffer()));
   return buildPdf(
-    story.PAGES.map((p, i) => ({ image: jpgs[i], caption: p.caption, textZone: p.textZone })),
+    book.pages.map((p, i) => ({ image: jpgs[i], caption: p.caption, textZone: p.textZone })),
     about
   );
 }
