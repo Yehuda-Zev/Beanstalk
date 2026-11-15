@@ -303,18 +303,6 @@
     <div class="sendrow"><button id="go" type="submit" class="seal">Draw my hero</button></div>
   </form>
 
-<<<<<<< HEAD
-  <div id="review" hidden>
-    <h2>Does this look like <span id="rvName"></span>?</h2>
-    <img id="rvImg" alt="Character picture" style="max-width:100%;border:1px solid #ccc">
-    <p class="muted">This is how the child will look in the book. If it doesn't look right, redraw it before we draw the whole story.</p>
-    <button id="approve" type="button">Looks good, make my book</button>
-    <button id="redraw" type="button">Redraw (<span id="left"></span> left)</button>
-  </div>
-
-  <h2>My books</h2>
-  <ul id="books"></ul>
-=======
   <!-- 2. progress -->
   <section id="progress" class="panel" hidden aria-live="polite">
     <h2 id="pgTitle">Working on it</h2>
@@ -348,7 +336,6 @@
     <h2>My bookshelf</h2>
     <div class="shelf" id="shelf"></div>
   </section>
->>>>>>> e77a76b8da99960b6e529720019a195a49617ead
 </section>
 
 <p class="foot"><a href="/privacy">Privacy policy</a></p>
@@ -392,37 +379,6 @@ async function init() {
   if (open) track(open.id);
 }
 
-<<<<<<< HEAD
-async function loadBooks() {
-  const { books } = await (await api('/api/books')).json();
-  const list = $('books');
-  list.textContent = '';
-  if (!books.length) { list.innerHTML = '<li class="muted">No books yet.</li>'; }
-  let anyWorking = false;
-  for (const b of books) {
-    const li = document.createElement('li');
-    const when = new Date(b.createdAt).toLocaleString();
-    if (b.status === 'done') {
-      const a = document.createElement('a');
-      a.href = '/download/' + b.id; a.download = ''; a.textContent = b.childName;
-      li.append(a, ' (' + when + ')');
-    } else if (b.status === 'review') {
-      const btn = document.createElement('button');
-      btn.type = 'button'; btn.textContent = 'Check the character'; btn.style.cssText = 'margin:0;padding:.2rem .6rem';
-      btn.onclick = () => track(b.id);
-      li.append(b.childName + ' (' + when + '): waiting for your approval ', btn);
-    } else if (b.status === 'sheet' || b.status === 'working') {
-      anyWorking = true;
-      li.textContent = b.childName + ' (' + when + '): still being drawn...';
-    } else {
-      li.textContent = b.childName + ' (' + when + '): ' + (b.error || 'failed');
-    }
-    list.append(li);
-  }
-  clearTimeout(polling);
-  if (anyWorking) polling = setTimeout(loadBooks, 4000); // also picks up books after a page reload
-}
-=======
 /* ---------- the notepad ---------- */
 const nameIn = $('nameIn');
 nameIn.addEventListener('input', () => { $('polCap').textContent = nameIn.value.trim().split(/\s+/)[0] || ''; });
@@ -434,7 +390,6 @@ $('form').elements.photo.addEventListener('change', (e) => {
   img.src = URL.createObjectURL(f);
   $('frame').textContent = ''; $('frame').append(img);
 });
->>>>>>> e77a76b8da99960b6e529720019a195a49617ead
 
 $('form').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -444,11 +399,7 @@ $('form').addEventListener('submit', async (e) => {
     const res = await api('/generate', { method: 'POST', body: new FormData($('form')) });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Something went wrong.');
-<<<<<<< HEAD
-    loadBooks();
-=======
     loadShelf();
->>>>>>> e77a76b8da99960b6e529720019a195a49617ead
     track(data.id);
   } catch (err) {
     $('formErr').textContent = err.message;
@@ -456,63 +407,6 @@ $('form').addEventListener('submit', async (e) => {
   $('go').disabled = false;
 });
 
-<<<<<<< HEAD
-// Follows one book through: drawing the character -> your approval -> drawing the story -> done.
-let trackTimer = null;
-async function track(id) {
-  clearTimeout(trackTimer);
-  $('review').hidden = true;
-  go.disabled = true;
-  try {
-    const s = await (await api('/status/' + id)).json();
-    if (s.status === 'sheet' || s.status === 'working') {
-      show(s.message);
-      trackTimer = setTimeout(() => track(id), 3000);
-      return;
-    }
-    if (s.status === 'review') {
-      show('');
-      $('rvName').textContent = s.childName;
-      $('rvImg').src = '/sheet/' + id + '?t=' + Date.now();
-      $('left').textContent = s.redrawsLeft;
-      $('redraw').disabled = s.redrawsLeft < 1;
-      $('approve').onclick = () => decide(id, 'approve');
-      $('redraw').onclick = () => decide(id, 'redraw');
-      $('review').hidden = false;
-      loadBooks();
-      return;
-    }
-    if (s.status === 'done') {
-      statusEl.className = '';
-      statusEl.innerHTML = 'Your book is ready! <a href="/download/' + id + '" download>Download JackAndTheBeanstalk.pdf</a>';
-    } else {
-      show(s.error || 'Generation failed.', true);
-    }
-  } catch {
-    show('Lost connection. Your book will appear under My books when it is ready.', true);
-  }
-  go.disabled = false;
-  loadBooks();
-}
-
-async function decide(id, action) {
-  $('approve').disabled = true; $('redraw').disabled = true;
-  try {
-    const res = await api('/books/' + id + '/' + action, { method: 'POST' });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Something went wrong.');
-  } catch (err) {
-    show(err.message, true);
-  }
-  $('approve').disabled = false;
-  track(id);
-}
-
-$('logout').addEventListener('click', async () => {
-  await fetch('/logout', { method: 'POST' });
-  location.reload();
-});
-=======
 /* ---------- following one book through its steps ---------- */
 function stageOf(s) {
   if (s.status === 'sheet') return 0;
@@ -530,7 +424,6 @@ async function track(id) {
   let s;
   try { s = await (await api('/status/' + id)).json(); }
   catch { $('pgMsg').textContent = 'Lost the connection. Your book will wait on the shelf.'; return; }
->>>>>>> e77a76b8da99960b6e529720019a195a49617ead
 
   if (s.status === 'sheet' || s.status === 'working') {
     showPanel('progress');
