@@ -17,6 +17,7 @@ const rateLimit = require('express-rate-limit');
 const story = require('./lib/story');
 const book = require('./lib/books/beanstalk');
 const template = require('./lib/template');
+const { makeBackground } = require('./lib/background');
 const { buildPdf } = require('./lib/pdf');
 const db = require('./lib/db');
 const auth = require('./lib/auth');
@@ -119,15 +120,37 @@ Keep everything else in Image 1 exactly as it is. Keep Jack's face in the middle
 Avoid: any text, letters, watermarks, split panels.`;
 }
 
+// Backgrounds are shared by every book. Any that are missing are made once and stored, so later books reuse them.
+// Two books needing the same page at the same time share one generation.
+const backgroundInFlight = new Map();
+async function ensureBackgrounds(onProgress) {
+  const stored = await db.getBackgrounds(book.id);
+  const missing = book.pages.filter((p) => !stored[p.n]);
+  if (!missing.length) return stored;
+
+  onProgress(`Preparing the pictures... (0/${missing.length})`);
+  let done = 0;
+  await Promise.all(
+    missing.map((page) => {
+      const key = `${book.id}:${page.n}`;
+      if (!backgroundInFlight.has(key)) {
+        backgroundInFlight.set(
+          key,
+          makeBackground(client, book.id, page).finally(() => backgroundInFlight.delete(key))
+        );
+      }
+      return backgroundInFlight.get(key).then(() => onProgress(`Preparing the pictures... (${++done}/${missing.length})`));
+    })
+  );
+  return db.getBackgrounds(book.id);
+}
+
 // Phase 2 (after approval): Jack is added to each stored background, then the PDF is built.
 async function makePages(photoBuffer, sheetBuffer, about, onProgress) {
   const problems = template.validateBook(book);
   if (problems.length) throw new Error('Book is not valid: ' + problems.join(' '));
 
-  const backgrounds = await db.getBackgrounds(book.id);
-  const missing = book.pages.filter((p) => !backgrounds[p.n]).map((p) => p.n);
-  if (missing.length) throw new Error(`Backgrounds missing for pages: ${missing.join(', ')}`);
-
+  const backgrounds = await ensureBackgrounds(onProgress);
   const jack = png(sheetBuffer);
   const total = book.pages.length;
   onProgress(`Painting the pages... (0/${total})`);
