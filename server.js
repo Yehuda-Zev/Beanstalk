@@ -330,6 +330,9 @@ app.get('/download/:id', auth.requireLogin, async (req, res) => {
   res.send(pdf);
 });
 
+// Debug mode (DEBUG_MODE=1 only): one page at a time. See lib/debug-routes.js.
+require('./lib/debug-routes')(app, { client, auth, upload, db, book });
+
 app.use((err, req, res, next) => {
   if (err.code === 'LIMIT_FILE_SIZE') return res.status(400).json({ error: 'Photo too large (8MB max).' });
   if (err.name === 'MulterError') return res.status(400).json({ error: 'Upload failed.' });
