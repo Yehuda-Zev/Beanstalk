@@ -18,6 +18,7 @@ const story = require('./lib/story');
 const book = require('./lib/books/beanstalk');
 const template = require('./lib/template');
 const { setKey, ensureSheets, makeBackground } = require('./lib/background');
+const { makeJack, placeJack } = require('./lib/jack');
 const { buildPdf } = require('./lib/pdf');
 const db = require('./lib/db');
 const auth = require('./lib/auth');
@@ -152,28 +153,31 @@ async function ensureBackgrounds(onProgress) {
   return db.getBackgrounds(set);
 }
 
-// Phase 2 (after approval): Jack is added to each stored background, then the PDF is built.
+// Phase 2 (after approval): Jack is drawn for each page and placed on its stored background, then the PDF is built.
 async function makePages(photoBuffer, sheetBuffer, about, onProgress) {
   const problems = template.validateBook(book);
   if (problems.length) throw new Error('Book is not valid: ' + problems.join(' '));
 
   const backgrounds = await ensureBackgrounds(onProgress);
-  const jack = png(sheetBuffer);
   const total = book.pages.length;
   onProgress(`Painting the pages... (0/${total})`);
   let done = 0;
-  // Pages run in parallel. Each call gets the page background (Image 1) and Jack's sheet (Image 2).
-  const art = await Promise.all(
-    book.pages.map(async (page) => {
-      const img = await edit([png(backgrounds[page.n]), jack], pageEditPrompt(page));
-      onProgress(`Painting the pages... (${++done}/${total})`);
-      return img;
-    })
-  );
+  const jpgs = [];
+  for (let i = 0; i < total; i += BACKGROUND_BATCH) {
+    const batch = book.pages.slice(i, i + BACKGROUND_BATCH);
+    const made = await Promise.all(
+      batch.map(async (page) => {
+        const jackPng = await makeJack(client, sheetBuffer, page);
+        const jpg = await placeJack(backgrounds[page.n], jackPng, page);
+        onProgress(`Painting the pages... (${++done}/${total})`);
+        return jpg;
+      })
+    );
+    jpgs.push(...made);
+  }
 
   // The PDF layer draws the text.
   onProgress('Building your book...');
-  const jpgs = await Promise.all(art.map((b) => sharp(b).jpeg({ quality: 88 }).toBuffer()));
   return buildPdf(
     book.pages.map((p, i) => ({ image: jpgs[i], caption: p.caption, textZone: p.textZone })),
     about
