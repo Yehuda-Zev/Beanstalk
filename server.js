@@ -123,6 +123,7 @@ Avoid: any text, letters, watermarks, split panels.`;
 // Backgrounds are shared by every book. Any that are missing are made once and stored, so later books reuse them.
 // Two books needing the same page at the same time share one generation.
 const backgroundInFlight = new Map();
+const BACKGROUND_BATCH = 5; // simultaneous background requests
 async function ensureBackgrounds(onProgress) {
   const stored = await db.getBackgrounds(book.id);
   const missing = book.pages.filter((p) => !stored[p.n]);
@@ -130,18 +131,22 @@ async function ensureBackgrounds(onProgress) {
 
   onProgress(`Preparing the pictures... (0/${missing.length})`);
   let done = 0;
-  await Promise.all(
-    missing.map((page) => {
-      const key = `${book.id}:${page.n}`;
-      if (!backgroundInFlight.has(key)) {
-        backgroundInFlight.set(
-          key,
-          makeBackground(client, book.id, page).finally(() => backgroundInFlight.delete(key))
-        );
-      }
-      return backgroundInFlight.get(key).then(() => onProgress(`Preparing the pictures... (${++done}/${missing.length})`));
-    })
-  );
+  // Batches keep the number of simultaneous image requests under the OpenAI rate limit.
+  for (let i = 0; i < missing.length; i += BACKGROUND_BATCH) {
+    const batch = missing.slice(i, i + BACKGROUND_BATCH);
+    await Promise.all(
+      batch.map((page) => {
+        const key = `${book.id}:${page.n}`;
+        if (!backgroundInFlight.has(key)) {
+          backgroundInFlight.set(
+            key,
+            makeBackground(client, book.id, page).finally(() => backgroundInFlight.delete(key))
+          );
+        }
+        return backgroundInFlight.get(key).then(() => onProgress(`Preparing the pictures... (${++done}/${missing.length})`));
+      })
+    );
+  }
   return db.getBackgrounds(book.id);
 }
 
