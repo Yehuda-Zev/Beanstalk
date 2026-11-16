@@ -18,7 +18,7 @@ const story = require('./lib/story');
 const book = require('./lib/books/beanstalk');
 const template = require('./lib/template');
 const { setKey, ensureSheets, makeBackground } = require('./lib/background');
-const { makeJack, placeJack } = require('./lib/jack');
+const { detectHead, swapHead } = require('./lib/jack');
 const { buildPdf } = require('./lib/pdf');
 const db = require('./lib/db');
 const auth = require('./lib/auth');
@@ -111,16 +111,6 @@ async function makeJackSheet(photoBuffer) {
   return edit([png(photoBuffer)], story.jackSheetPrompt(), JACK_SHEET_QUALITY);
 }
 
-// Adds Jack to one page's stored background. The side characters are already in the background.
-function pageEditPrompt(page) {
-  return `Image 1 is the storybook background for this page. Image 2 is the reference for Jack, a child.
-Add Jack into Image 1 so he matches Image 2 exactly: same face, hair, skin tone and clothes.
-Place him in this scene: ${page.scene}
-Style: ${story.STYLE}
-Keep everything else in Image 1 exactly as it is. Keep Jack's face in the middle third of the picture.
-Avoid: any text, letters, watermarks, split panels.`;
-}
-
 // Backgrounds are shared by every book. Any that are missing are made once and stored, so later books reuse them.
 // Two books needing the same page at the same time share one generation.
 const backgroundInFlight = new Map();
@@ -153,28 +143,35 @@ async function ensureBackgrounds(onProgress) {
   return db.getBackgrounds(set);
 }
 
-// Phase 2 (after approval): Jack is drawn for each page and placed on its stored background, then the PDF is built.
+// Phase 2 (after approval): the child's face goes onto the generic Jack on every stored background,
+// then the PDF is built. Pages run at the same time, up to PAGE_CONCURRENCY (OpenAI allows 20 images a minute).
+const PAGE_CONCURRENCY = Number(process.env.PAGE_CONCURRENCY) || 10;
 async function makePages(photoBuffer, sheetBuffer, about, onProgress) {
   const problems = template.validateBook(book);
   if (problems.length) throw new Error('Book is not valid: ' + problems.join(' '));
 
   const backgrounds = await ensureBackgrounds(onProgress);
+  const set = setKey(book);
+  const heads = await db.getHeads(set);
   const total = book.pages.length;
   onProgress(`Painting the pages... (0/${total})`);
   let done = 0;
-  const jpgs = [];
-  for (let i = 0; i < total; i += BACKGROUND_BATCH) {
-    const batch = book.pages.slice(i, i + BACKGROUND_BATCH);
-    const made = await Promise.all(
-      batch.map(async (page) => {
-        const jackPng = await makeJack(client, sheetBuffer, page);
-        const jpg = await placeJack(backgrounds[page.n], jackPng, page);
-        onProgress(`Painting the pages... (${++done}/${total})`);
-        return jpg;
-      })
-    );
-    jpgs.push(...made);
+  const jpgs = new Array(total);
+  let next = 0;
+  async function worker() {
+    while (next < total) {
+      const i = next++;
+      const page = book.pages[i];
+      let box = heads[page.n];
+      if (!box) {
+        box = await detectHead(client, backgrounds[page.n]);
+        await db.saveHead(set, page.n, box);
+      }
+      jpgs[i] = await swapHead(client, backgrounds[page.n], sheetBuffer, box, page);
+      onProgress(`Painting the pages... (${++done}/${total})`);
+    }
   }
+  await Promise.all(Array.from({ length: Math.min(PAGE_CONCURRENCY, total) }, worker));
 
   // The PDF layer draws the text.
   onProgress('Building your book...');
